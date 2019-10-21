@@ -5,14 +5,14 @@
   "dashes": false,
   "datasource": "Tatooine TTN LIV",
   "fill": 1,
-  "fillGradient": 0,
+  "fillGradient": "{i{FILL_AMOUNT}}",
   "gridPos": {
     "h": 9,
     "w": 12,
     "x": 0,
     "y": 0
   },
-  "id": 2,
+  "id": 5,
   "legend": {
     "avg": false,
     "current": false,
@@ -39,7 +39,7 @@
   "targets": [
     {
       "groupBy": [],
-      "measurement": "Agnes_Jones",
+      "measurement": "{{MEASUREMENT}}",
       "orderByTime": "ASC",
       "policy": "default",
       "refId": "A",
@@ -61,7 +61,7 @@
   "timeFrom": null,
   "timeRegions": [],
   "timeShift": null,
-  "title": "1",
+  "title": "{{TITLE}}",
   "tooltip": {
     "shared": true,
     "sort": 0,
