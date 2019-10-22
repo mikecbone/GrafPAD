@@ -110,8 +110,17 @@ async function menuTemplates(){
   }
 }
 
-function menuPanelByUid(){
-  setTimeout(menu, MENU_SLEEP_TIME);
+async function menuPanelByUid(){
+  let uid = await promptForDashboardUid();
+
+  if (uid === undefined || uid === '') {
+    console.log(chalk.red('[-] Error: Could  not read API key'));
+    return;
+  }
+
+  getDashboardJsonByUid(uid, function(returnValue) {
+    handleDashboardJson(returnValue);
+  })
 }
 
 async function menuDashboardJsonByUid(){
@@ -122,48 +131,8 @@ async function menuDashboardJsonByUid(){
     return;
   }
 
-  getDashboardJsonByUid(uid, function(returnValue) { //pmr8WlZRk
-    // Save the json as a file
-    let jsonString = JSON.stringify(returnValue);
-    fs.writeFileSync(TEMP_DIR + '\\temp.json', jsonString);
-
-    // Load the json file to edit
-    let jsonFile = editJsonFile(`${TEMP_DIR}\\temp.json`);
-
-    // Pull out dashboard panel object and get the last grid coordinates
-    var jsonPanels = jsonFile.get('dashboard.panels');
-    let length = jsonPanels.length;
-    let gridPos = jsonPanels[length - 1].gridPos
-
-    // Load the template and parse as object
-    let rawTemplate = fs.readFileSync(TEMPLATES_DIR + '\\template.json');
-    var template = JSON.parse(rawTemplate);
-
-    //Give random ID and itterate on the position
-    template.id = Date.now();
-    template.gridPos.x = gridPos.x + (2 * gridPos.w) > 24 ? 0 : gridPos.x + gridPos.w;
-    template.gridPos.y =  gridPos.x + (2 * gridPos.w) > 24 ? gridPos.y + gridPos.h : gridPos.y;
-
-    // Input custom values into template as strings
-    var templateString = JSON.stringify(template);
-    replaceStringVariables(templateString);
-    replaceIntVariables(templateString);
-    templateString = templateString.replace("{{MEASUREMENT}}", "Shrike");
-    templateString = templateString.replace("{{TITLE}}", "GrafPAD Panel");
-    templateString = templateString.replace('"{i{FILL_AMOUNT}}"', 5);
-    template = JSON.parse(templateString)
-
-    // Add the template to the json panels object
-    jsonPanels.push(template);
-
-    // Set the updated template into the json file
-    jsonFile.set('dashboard.panels', jsonPanels);
-    jsonFile.save();
-    console.log(jsonFile.get("dashboard"));
-    
-    // Upload the new json to grafana
-    setDashboardJsonByUid(jsonFile.get("dashboard"));
-
+  getDashboardJsonByUid(uid, async function(returnValue) { //TODO: Add an option to save the json locally. 
+    console.log(returnValue);
     setTimeout(menu, MENU_SLEEP_TIME);
   });
 }
@@ -266,7 +235,26 @@ async function setDashboardJsonByUid(json){
         'Authorization': 'Bearer ' + process.env.API_KEY
       }
     }
-  );
+  ).then(res => {
+    if(res.status === 200){
+      NEWLINE();
+      console.log(`${res.status}: ${res.statusText}`);
+      console.log(chalk.green('Successfully updated dashboard'));
+    }
+    else {
+      NEWLINE();
+      console.log(`${res.status}: ${res.statusText}`);
+      console.log(chalk.red('Error posting to Grafana'));
+    }
+  });
+
+  setTimeout(menu, MENU_SLEEP_TIME);
+}
+
+function getTemplateName(templateChoice){ // TODO: THIS WILL BREAK IF THERE ARE NON JSON FILES
+  let file = fs.readdirSync(TEMPLATES_DIR)[templateChoice];
+  let split = file.split('.');
+  return split[0];
 }
 
 // ----- PROMPTS -----
@@ -319,6 +307,43 @@ async function promptForGrafanaApi(){
   return response.value;
 }
 
+async function promtForTemplate(noOfTemplates){
+  const response = await prompts({
+    type: 'number',
+    name: 'value',
+    message: `Select template`,
+    intial: 0,
+    float: true,
+    min: 0,
+    max: noOfTemplates - 1
+  });
+
+  return response.value;
+}
+
+async function promtForStringInput(match){
+  const response = await prompts({
+    type: 'text',
+    name: 'value',
+    message: `Enter value for ${match}`,
+    validate: value => typeof(value) === 'string' ? true : 'Enter a string'
+  });
+
+  return response.value;
+}
+
+async function promtForIntInput(match){
+  const response = await prompts({
+    type: 'number',
+    name: 'value',
+    message: `Enter value for ${match}`,
+    intial: 0,
+    float: true
+  });
+
+  return response.value;
+}
+
 // ----- FUNCTIONS -----
 function showCurrentTemplates(){
   NEWLINE();
@@ -330,7 +355,7 @@ function showCurrentTemplates(){
     }
   })
 
-  menu();
+  setTimeout(menu, MENU_SLEEP_TIME);
 }
 
 function addNewTemplate(){
@@ -344,46 +369,98 @@ function addNewTemplate(){
     }
   })
 
-  menu();
+  setTimeout(menu, MENU_SLEEP_TIME);
 }
 
-function replaceStringVariables(jsonString){
+async function handleDashboardJson(json){
+  // Save the json as a file
+  let jsonString = JSON.stringify(json);
+  fs.writeFileSync(TEMP_DIR + '\\temp.json', jsonString);
+
+  // Load the dashboard json file to edit
+  let jsonFile = editJsonFile(`${TEMP_DIR}\\temp.json`);
+
+  // Pull out dashboard panel object and get the last grid coordinates
+  var jsonPanels = jsonFile.get('dashboard.panels');
+  let length = jsonPanels.length;
+  let gridPos = jsonPanels[length - 1].gridPos
+
+  // Load the template and parse as object
+  let noOfTemplates = displayTemplateChoices();
+  let templateChoice = await promtForTemplate(noOfTemplates);
+  let templateName = getTemplateName(templateChoice);
+  let rawTemplate = fs.readFileSync(`${TEMPLATES_DIR}\\${templateName}.json`)
+  var template = JSON.parse(rawTemplate);
+
+  //Give random ID and itterate on the position
+  template.id = Date.now();
+  template.gridPos.x = gridPos.x + (2 * gridPos.w) > 24 ? 0 : gridPos.x + gridPos.w;
+  template.gridPos.y =  gridPos.x + (2 * gridPos.w) > 24 ? gridPos.y + gridPos.h : gridPos.y;
+
+  // Input custom values into template as strings
+  var templateString = JSON.stringify(template);
+  templateString = await replaceStringVariables(templateString);
+  templateString = await replaceIntVariables(templateString);
+
+  // Parse and add the template to the json panels object
+  template = JSON.parse(templateString)
+  jsonPanels.push(template);
+
+  // Set the updated template into the json file
+  jsonFile.set('dashboard.panels', jsonPanels);
+  jsonFile.save();
+  
+  // Upload the new json to grafana
+  setDashboardJsonByUid(jsonFile.get("dashboard"));
+}
+
+function displayTemplateChoices(){
+  var i = 0;
+  NEWLINE();
+
+  fs.readdirSync(TEMPLATES_DIR).forEach(file => {
+    let split = file.split('.');
+
+    if(split[1] == 'json'){
+      console.log(i + ' - ' + split[0]);
+    }
+
+    i++;
+  })
+
+  NEWLINE();
+  return i;
+}
+
+async function replaceStringVariables(jsonString){
   const regex = /{{\w+}}/g;
-  var replace = jsonString;
-
+  let replace = jsonString;
   let m;
 
   while ((m = regex.exec(replace)) !== null) {
-      // This is necessary to avoid infinite loops with zero-width matches
-      if (m.index === regex.lastIndex) {
-          regex.lastIndex++;
-      }
-      
-      // The result can be accessed through the `m`-variable.
-      m.forEach((match, groupIndex) => {
-          console.log(`Found match, group ${groupIndex}: ${match}`);
-      });
+    for (let i=0; i < m.length; i++) {
+      match = m[i];
+      let input = await promtForStringInput(match);
+      jsonString = jsonString.replace(match, input);
+    }
   }
+   return jsonString;
 }
 
-function replaceIntVariables(jsonString){
+async function replaceIntVariables(jsonString){
   const regex = /"{i{\w+}}"/g;
-  var replace = jsonString
-
+  let replace = jsonString
   let m;
 
   while ((m = regex.exec(replace)) !== null) {
-      // This is necessary to avoid infinite loops with zero-width matches
-      if (m.index === regex.lastIndex) {
-          regex.lastIndex++;
-      }
-      
-      // The result can be accessed through the `m`-variable.
-      m.forEach((match, groupIndex) => {
-          console.log(`Found match, group ${groupIndex}: ${match}`);
-      });
+    for (let i=0; i < m.length; i++) {
+      match = m[i];
+      let input = await promtForIntInput(match);
+      jsonString = jsonString.replace(match, input);
+    }
   }
+  return jsonString;
 }
 
- // uid: ctM1hTWRz 
+ // uid: pmr8WlZRk 
  // key: eyJrIjoiTTJWd2dwZkpqYkxhbncyeTU1cmxEU1hOc2tONnBYSTkiLCJuIjoiR3JhZlBBRCIsImlkIjoxfQ==
