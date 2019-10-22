@@ -11,12 +11,13 @@ const figlet = require('figlet'); // Large text styling
 const openExplorer = require('open-file-explorer'); // File explorer
 const editJsonFile = require('edit-json-file'); // JSON editor
 
-require('dotenv').config(); // Enviroment variable
+require('dotenv').config(); // Environment variable
 
 // ----- CONSTANTS -----
 const options = yargs.argv; // Get command line options eg: debug
 const TEMPLATES_DIR = 'store\\templates';
 const TEMP_DIR = 'store\\temp';
+const SAVED_DIR = 'store\\saved';
 const MENU_SLEEP_TIME = 1500;
 const NEWLINE = () => console.log('\n');
 
@@ -24,7 +25,7 @@ const NEWLINE = () => console.log('\n');
 if (options.init){
   initialise();
 } 
-else if (!fs.existsSync('.env') || process.env.API_KEY === undefined || process.env.API_KEY === '') {
+else if (process.env.API_KEY === undefined || process.env.API_KEY === '') {
   console.log(chalk.red('[-] Error: GrafPAD not initialised. Please run ' + chalk.yellow('grafpad --init')));
 } 
 else {
@@ -33,11 +34,11 @@ else {
 }
 
 // ----- INIT FUNCTION -----
-function initialise(){
-  console.log(chalk.magenta('Setting up folder structure...'));
+async function initialise(){
   setFolderStructure();
-  console.log(chalk.magenta('Getting Grafana API Key...'));
-  setGrafanaApiKey();
+  await setGrafanaUrl();
+  await setGrafanaApiKey();
+  await setPrometheusConfigLocation();
 }
 
 // ----- TITLE AND MENU -----
@@ -45,9 +46,9 @@ function title() {
   // Title
   console.log(
     boxen(
-      chalk.hex('FF7700')(figlet.textSync(
-        "GrafPAD")+"\nGrafana Panel and Dashboard Editing Tool\n-Support for Prometheus and Node-RED-"
-      ), 
+      chalk.hex('FF7700')(figlet.textSync("GrafPAD")+"\nGrafana Panel and Dashboard Editing Tool")
+      + chalk.yellow('\n-Support for Prometheus and Node-RED-')
+      + chalk.magenta('\nv0.1.0 - By mikecbone'), 
       {
         padding: 1, float: 'center', align: 'center', border: 'bold'
       }
@@ -63,10 +64,12 @@ async function menu(){
       name: 'value',
       message: 'Menu',
       choices: [
-        { title: 'Templates', description: 'Manage Grafana JSON templates', value: 1 },
-        { title: 'Panel by UID', description: 'Add a panel from templates to a dashboard by UID', value: 2},
-        { title: 'Dashboard JSON by UID', description: 'Retrieve the JSON of a dashboard by UID', value: 3},
-        { title: 'Grafana API Key', description: 'Manage grafana api key', value: 4},
+        { title: 'Manage templates', description: 'Manage Grafana JSON templates', value: 1 },
+        { title: 'Add panel by UID', description: 'Add a panel from templates to a dashboard by UID', value: 2},
+        { title: 'Get dashboard JSON by UID', description: 'Retrieve the JSON of a dashboard by UID', value: 3},
+        { title: 'Add gateway to Node-RED', description: 'Add a gateway to Node-RED monitoring', value: 4}, //TODO
+        { title: 'Add gateway to Prometheus', description: 'Add a gateway to prometheus scraping', value: 5}, //TODO
+        { title: 'Manage Initialised Variables', description: 'Manage environment variables setup at initialisation', value: 6},
         { title: 'Exit', description: 'Exit GrafPAD', value: 99},
       ],
       initial: 0,
@@ -88,7 +91,13 @@ async function menu(){
         menuDashboardJsonByUid();
         break;
       case 4:
-        menuGrafanaApiKey();
+        menuAddGatewayToNodeRed();
+        break;
+      case 5:
+        menuAddGatewayToPrometheus();
+        break;
+      case 6:
+        menuManageVariables();
         break;
       default:
         console.log("Nothing selected. Exiting...");
@@ -103,7 +112,8 @@ async function menuTemplates(){
   let response = await promptShowOrAddTemplates();
 
   if(response === 1) {
-    showCurrentTemplates();
+    displayTemplates();
+    setTimeout(menu, MENU_SLEEP_TIME);
   }
   else if (response === 2) {
     addNewTemplate();
@@ -114,7 +124,7 @@ async function menuPanelByUid(){
   let uid = await promptForDashboardUid();
 
   if (uid === undefined || uid === '') {
-    console.log(chalk.red('[-] Error: Could  not read API key'));
+    console.log(chalk.red('[-] Error: Undefined UID'));
     return;
   }
 
@@ -127,34 +137,49 @@ async function menuDashboardJsonByUid(){
   let uid = await promptForDashboardUid();
 
   if (uid === undefined || uid === '') {
-    console.log(chalk.red('[-] Error: Could  not read API key'));
+    console.log(chalk.red('[-] Error: Undefined UID'));
     return;
   }
 
   getDashboardJsonByUid(uid, async function(returnValue) { //TODO: Add an option to save the json locally. 
     console.log(returnValue);
+
+    let response = await promptYesOrNo('Save dashboard JSON?');
+    if (response === true) {
+      setDashboardJsonToDisk(returnValue);
+    }
+
     setTimeout(menu, MENU_SLEEP_TIME);
   });
 }
 
-async function menuGrafanaApiKey(){
-  let apiKey = getGrafanaApiKey();
+function menuAddGatewayToNodeRed(){
+  setTimeout(menu, MENU_SLEEP_TIME);
+}
 
-  if (apiKey === 'NO_API_KEY'){
-    console.log("[-] Error: No grafana key set");
-    setGrafanaApiKey();
-  } 
-  else {
-    console.log("Current API Key: " + chalk.green(apiKey));
-    NEWLINE();
-    let response = await promptYesOrNo('Change API Key?');
-    if (response === true) {
-      setGrafanaApiKey();
+function menuAddGatewayToPrometheus(){
+  setTimeout(menu, MENU_SLEEP_TIME);
+}
+
+async function menuManageVariables(){
+  let response = await promtManageVariables();
+
+  switch (response)
+    {
+      case 1:
+        grafanaUrl();
+        break;
+      case 2:
+        grafanaApiKey();
+        break;
+      case 3:
+        prometheusConfig();
+        break;
+      default:
+        console.log("Nothing selected. Exiting...");
+        exitApp();
+        break;
     }
-    else {
-      setTimeout(menu, MENU_SLEEP_TIME);
-    }
-  }
 }
 
 function exitApp(){
@@ -172,19 +197,28 @@ function setFolderStructure(){
   if (!fs.existsSync(TEMP_DIR)){
     fs.mkdirSync(TEMP_DIR);
   }
+  if (!fs.existsSync(SAVED_DIR)){
+    fs.mkdirSync(SAVED_DIR);
+  }
   if (!fs.existsSync('.env')){
-    fs.writeFileSync('.env');
+    fs.writeFileSync('.env', '');
   }
   if (!fs.existsSync('.gitignore')){
     fs.writeFileSync('.gitignore', '.env\nnode_modules\n');
   }
+  console.log(chalk.green('Folder Structure Set\n'));
 }
 
-function getGrafanaApiKey() {
-  if (process.env.API_KEY != null && process.env.API_KEY != ''){
-    return process.env.API_KEY;
-  } else {
-    return 'NO_API_KEY';
+async function setGrafanaUrl(){
+  let url = await promtForGrafanaUrl();
+
+  if (url != undefined && url != ''){
+    fs.appendFileSync('.env', '\nGRAFANA_URL='+url);
+    console.log(chalk.green('Grafana URL Set\n'));
+  }
+  else {
+    console.log(chalk.red('Grafana URL Undefined'));
+    process.exit();
   }
 }
 
@@ -192,19 +226,30 @@ async function setGrafanaApiKey(){
   let apiKey = await promptForGrafanaApi();
 
   if (apiKey != undefined && apiKey != ''){
-    fs.writeFileSync('.env', 'API_KEY='+apiKey);
-    console.log(chalk.green('API Key Set\n'))
-    process.exit();
+    fs.appendFileSync('.env', '\nAPI_KEY='+apiKey);
+    console.log(chalk.green('API Key Set\n'));
   }
   else {
     console.log(chalk.red('API Key Undefined'));
     process.exit();
   }
+}
+
+async function setPrometheusConfigLocation(){
+  let location = await promtForPrometheusConfigLocation();
   
+  if (location != undefined && location != ''){
+    fs.appendFileSync('.env', '\nPROMETHEUS_CONFIG='+location);
+    console.log(chalk.green('Prometheus Config Location Set\n'));
+  }
+  else {
+    console.log(chalk.red('Prometheus Config Location Undefined'));
+    process.exit();
+  }
 }
 
 async function getDashboardJsonByUid(uid, callback){
-  const baseUrl = "http://tatooine.local:3000/api/dashboards/uid/";
+  const baseUrl = process.env.GRAFANA_URL + "/api/dashboards/uid/";
   const url = baseUrl + String(uid);
 
   axios.get(
@@ -221,7 +266,7 @@ async function getDashboardJsonByUid(uid, callback){
 }
 
 async function setDashboardJsonByUid(json){
-  const baseUrl = "http://tatooine.local:3000/api/dashboards/db";
+  const baseUrl = process.env.GRAFANA_URL + "/api/dashboards/db"; //TODO: Get grafana url on init
 
   axios.post(
     baseUrl, {
@@ -257,6 +302,12 @@ function getTemplateName(templateChoice){ // TODO: THIS WILL BREAK IF THERE ARE 
   return split[0];
 }
 
+function setDashboardJsonToDisk(json) {
+  fs.writeFileSync(SAVED_DIR + '\\json.json', JSON.stringify(json)); //TODO: These should be in a try catch
+
+  openDir(SAVED_DIR);
+}
+
 // ----- PROMPTS -----
 async function promptYesOrNo(message){
   const response = await prompts({
@@ -264,6 +315,23 @@ async function promptYesOrNo(message){
     name: 'value',
     message: message,
     initial: false,
+  });
+
+  return response.value;
+}
+
+async function promtManageVariables(){
+  const response = await prompts({
+    type: 'select',
+    name: 'value',
+    message: 'Environment Variables',
+    choices: [
+      { title: 'Grafana URL', description: 'Manage the Grafana URL', value: 1 },
+      { title: 'Grafana API Key', description: 'Manage the Grafana API key', value: 2},
+      { title: 'Prometheus Config', description: 'Manage the Prometheus config file location', value: 3},
+    ],
+    initial: 0,
+    hint: '- Space to select'
   });
 
   return response.value;
@@ -311,11 +379,30 @@ async function promtForTemplate(noOfTemplates){
   const response = await prompts({
     type: 'number',
     name: 'value',
-    message: `Select template`,
+    message: 'Select template',
     intial: 0,
-    float: true,
     min: 0,
     max: noOfTemplates - 1
+  });
+
+  return response.value;
+}
+
+async function promtForPrometheusConfigLocation(){
+  const response = await prompts({
+    type: 'text',
+    name: 'value',
+    message: 'Enther Prometheus config file location (eg: /etc/prometheus/prometheus.yml)',
+  });
+
+  return response.value;
+}
+
+async function promtForGrafanaUrl(){
+  const response = await prompts({
+    type: 'text',
+    name: 'value',
+    message: 'Enther Grafana URL (eg: http://localhost:3000)',
   });
 
   return response.value;
@@ -338,38 +425,30 @@ async function promtForIntInput(match){
     name: 'value',
     message: `Enter value for ${match}`,
     intial: 0,
-    float: true
+    float: true,
+    round: 3
   });
 
   return response.value;
 }
 
 // ----- FUNCTIONS -----
-function showCurrentTemplates(){
-  NEWLINE();
-  fs.readdirSync(TEMPLATES_DIR).forEach(file => {
-    let split = file.split('.');
-
-    if(split[1] == 'json'){
-      console.log(' - ' + split[0]);
-    }
-  })
+function addNewTemplate(){
+  openDir(TEMPLATES_DIR);
 
   setTimeout(menu, MENU_SLEEP_TIME);
 }
 
-function addNewTemplate(){
+function openDir(dir){
   var path = __dirname;
   let splits = path.split('bin');
-  var path = splits[0] + TEMPLATES_DIR;
+  var path = splits[0] + dir;
 
   openExplorer(path, err => {
     if(err) {
       console.log(err);
     }
   })
-
-  setTimeout(menu, MENU_SLEEP_TIME);
 }
 
 async function handleDashboardJson(json){
@@ -386,7 +465,7 @@ async function handleDashboardJson(json){
   let gridPos = jsonPanels[length - 1].gridPos
 
   // Load the template and parse as object
-  let noOfTemplates = displayTemplateChoices();
+  let noOfTemplates = displayTemplates();
   let templateChoice = await promtForTemplate(noOfTemplates);
   let templateName = getTemplateName(templateChoice);
   let rawTemplate = fs.readFileSync(`${TEMPLATES_DIR}\\${templateName}.json`)
@@ -414,7 +493,7 @@ async function handleDashboardJson(json){
   setDashboardJsonByUid(jsonFile.get("dashboard"));
 }
 
-function displayTemplateChoices(){
+function displayTemplates(){
   var i = 0;
   NEWLINE();
 
@@ -422,7 +501,7 @@ function displayTemplateChoices(){
     let split = file.split('.');
 
     if(split[1] == 'json'){
-      console.log(i + ' - ' + split[0]);
+      console.log(' ' + i + ': ' + split[0]);
     }
 
     i++;
@@ -430,6 +509,66 @@ function displayTemplateChoices(){
 
   NEWLINE();
   return i;
+}
+
+async function grafanaApiKey(){
+  let apiKey = process.env.API_KEY;
+
+  if (apiKey === undefined || apiKey === ''){
+    console.log("[-] Error: No grafana key set");
+    setGrafanaApiKey();
+  } 
+  else {
+    console.log("Current Grafana API Key: " + chalk.green(apiKey));
+    NEWLINE();
+    let response = await promptYesOrNo('Change API Key?');
+    if (response === true) {
+      setGrafanaApiKey();
+    }
+    else {
+      setTimeout(menu, MENU_SLEEP_TIME);
+    }
+  }
+}
+
+async function grafanaUrl(){
+  let grafanaUrl = process.env.GRAFANA_URL;
+
+  if (grafanaUrl === undefined || grafanaUrl === ''){
+    console.log("[-] Error: No grafana URL set");
+    setGrafanaUrl();
+  } 
+  else {
+    console.log("Current Grafana URL: " + chalk.green(grafanaUrl));
+    NEWLINE();
+    let response = await promptYesOrNo('Change URL?');
+    if (response === true) {
+      setGrafanaUrl();
+    }
+    else {
+      setTimeout(menu, MENU_SLEEP_TIME);
+    }
+  }
+}
+
+async function prometheusConfig(){
+  let prometheusConfig = process.env.PROMETHEUS_CONFIG;
+
+  if (prometheusConfig === undefined || prometheusConfig === ''){
+    console.log("[-] Error: No prometheus config location set");
+    setPrometheusConfigLocation();
+  } 
+  else {
+    console.log("Current Prometheus Config Location: " + chalk.green(prometheusConfig));
+    NEWLINE();
+    let response = await promptYesOrNo('Change Location?');
+    if (response === true) {
+      setPrometheusConfigLocation();
+    }
+    else {
+      setTimeout(menu, MENU_SLEEP_TIME);
+    }
+  }
 }
 
 async function replaceStringVariables(jsonString){
@@ -440,7 +579,7 @@ async function replaceStringVariables(jsonString){
   while ((m = regex.exec(replace)) !== null) {
     for (let i=0; i < m.length; i++) {
       match = m[i];
-      let input = await promtForStringInput(match);
+      let input = await promtForStringInput(match.slice(2, -2));
       jsonString = jsonString.replace(match, input);
     }
   }
@@ -455,7 +594,7 @@ async function replaceIntVariables(jsonString){
   while ((m = regex.exec(replace)) !== null) {
     for (let i=0; i < m.length; i++) {
       match = m[i];
-      let input = await promtForIntInput(match);
+      let input = await promtForIntInput(match.slice(4, -3));
       jsonString = jsonString.replace(match, input);
     }
   }

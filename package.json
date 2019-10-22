@@ -1,6 +1,6 @@
 {
   "name": "grafpad",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Grafana Panel and Dashboard Editing Tool",
   "main": "bin/index.js",
   "scripts": {
@@ -9,7 +9,7 @@
   "author": "Mike Bone",
   "license": "ISC",
   "bin": {
-    "hello": "./bin/index.js"
+    "grafpad": "./bin/index.js"
   },
   "dependencies": {
     "axios": "^0.19.0",
