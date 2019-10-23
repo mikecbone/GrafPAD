@@ -2,6 +2,8 @@
 
 // ----- IMPORTS -----
 const fs = require('fs'); // File system 
+const {exec} = require('child_process'); // Command line
+
 const yargs = require('yargs'); // Command line arguements
 const axios = require('axios'); // HTTP Client
 const boxen = require('boxen'); // Boxes in terminal
@@ -10,6 +12,7 @@ const prompts = require('prompts'); // User promts
 const figlet = require('figlet'); // Large text styling
 const openExplorer = require('open-file-explorer'); // File explorer
 const editJsonFile = require('edit-json-file'); // JSON editor
+const yaml = require('js-yaml'); // YAML editor
 
 require('dotenv').config(); // Environment variable
 
@@ -25,7 +28,7 @@ const NEWLINE = () => console.log('\n');
 if (options.init){
   initialise();
 } 
-else if (process.env.API_KEY === undefined || process.env.API_KEY === '') {
+else if (process.env.INIT != 'true') {
   console.log(chalk.red('[-] Error: GrafPAD not initialised. Please run ' + chalk.yellow('grafpad --init')));
 } 
 else {
@@ -39,6 +42,8 @@ async function initialise(){
   await setGrafanaUrl();
   await setGrafanaApiKey();
   await setPrometheusConfigLocation();
+  await setPrometheusUrl();
+  fs.appendFileSync('.env', '\nINIT=true');
 }
 
 // ----- TITLE AND MENU -----
@@ -67,8 +72,8 @@ async function menu(){
         { title: 'Manage templates', description: 'Manage Grafana JSON templates', value: 1 },
         { title: 'Add panel by UID', description: 'Add a panel from templates to a dashboard by UID', value: 2},
         { title: 'Get dashboard JSON by UID', description: 'Retrieve the JSON of a dashboard by UID', value: 3},
-        { title: 'Add gateway to Node-RED', description: 'Add a gateway to Node-RED monitoring', value: 4}, //TODO
-        { title: 'Add gateway to Prometheus', description: 'Add a gateway to prometheus scraping', value: 5}, //TODO
+        { title: 'Add target to Node-RED', description: 'Add a target to Node-RED monitoring', value: 4}, //TODO
+        { title: 'Add target to Prometheus', description: 'Add a scraping target to prometheus', value: 5},
         { title: 'Manage Initialised Variables', description: 'Manage environment variables setup at initialisation', value: 6},
         { title: 'Exit', description: 'Exit GrafPAD', value: 99},
       ],
@@ -141,7 +146,7 @@ async function menuDashboardJsonByUid(){
     return;
   }
 
-  getDashboardJsonByUid(uid, async function(returnValue) { //TODO: Add an option to save the json locally. 
+  getDashboardJsonByUid(uid, async function(returnValue) {
     console.log(returnValue);
 
     let response = await promptYesOrNo('Save dashboard JSON?');
@@ -158,7 +163,49 @@ function menuAddGatewayToNodeRed(){
 }
 
 function menuAddGatewayToPrometheus(){
-  setTimeout(menu, MENU_SLEEP_TIME);
+  const url = process.env.PROMETHEUS_URL + "/api/v1/status/config";
+
+  axios.get(url).then(async res => {
+    if(res.status === 200){
+      NEWLINE();
+      console.log(`${res.status}: ${res.statusText}`);
+      console.log(chalk.green('Successfully got config file'));
+
+      // Save the downloaded config file and open it in yaml module
+      fs.writeFileSync(TEMP_DIR + '\\temp.yml', res.data.data.yaml);
+      let doc = yaml.safeLoad(fs.readFileSync(TEMP_DIR + '\\temp.yml'));
+      console.log(doc);
+
+      // Loop through configs to add gateway to
+      for (let i=0; i<doc.scrape_configs.length; i++){
+        const name = doc.scrape_configs[i].job_name;
+        let response = await promptYesOrNo(`Add gateway target to job: ${name}`);
+        if (response === true){
+          doc.scrape_configs[i].static_configs[0].targets.push('shrike.ttnliv.uk:8105');
+          console.log(chalk.green('Added shrike.ttnliv.uk:8105 to ' + name));
+        }
+      }
+      // Save the new yaml file
+      fs.writeFileSync(TEMP_DIR + '\\temp.yml', yaml.safeDump(doc)); //TODO back up the old one
+
+      // exec('sudo service prometheus restart', (err, stdout, stderr) => { //TODO restart prometheus
+      //   if (err) {
+      //     console.log(err);
+      //     return;
+      //   }
+
+      //   console.log(stdout);
+      //   console.log(stderr);
+      // });
+
+      setTimeout(menu, MENU_SLEEP_TIME);
+    }
+    else {
+      NEWLINE();
+      console.log(`${res.status}: ${res.statusText}`);
+      console.log(chalk.red('Error contacting prometheus'));
+    }
+  });
 }
 
 async function menuManageVariables(){
@@ -174,6 +221,9 @@ async function menuManageVariables(){
         break;
       case 3:
         prometheusConfig();
+        break;
+      case 4:
+        prometheusUrl();
         break;
       default:
         console.log("Nothing selected. Exiting...");
@@ -248,6 +298,19 @@ async function setPrometheusConfigLocation(){
   }
 }
 
+async function setPrometheusUrl(){
+  let location = await promtForPrometheusUrl();
+  
+  if (location != undefined && location != ''){
+    fs.appendFileSync('.env', '\nPROMETHEUS_URL='+location);
+    console.log(chalk.green('Prometheus URL Set\n'));
+  }
+  else {
+    console.log(chalk.red('Prometheus URL Undefined'));
+    process.exit();
+  }
+}
+
 async function getDashboardJsonByUid(uid, callback){
   const baseUrl = process.env.GRAFANA_URL + "/api/dashboards/uid/";
   const url = baseUrl + String(uid);
@@ -266,7 +329,7 @@ async function getDashboardJsonByUid(uid, callback){
 }
 
 async function setDashboardJsonByUid(json){
-  const baseUrl = process.env.GRAFANA_URL + "/api/dashboards/db"; //TODO: Get grafana url on init
+  const baseUrl = process.env.GRAFANA_URL + "/api/dashboards/db";
 
   axios.post(
     baseUrl, {
@@ -329,6 +392,7 @@ async function promtManageVariables(){
       { title: 'Grafana URL', description: 'Manage the Grafana URL', value: 1 },
       { title: 'Grafana API Key', description: 'Manage the Grafana API key', value: 2},
       { title: 'Prometheus Config', description: 'Manage the Prometheus config file location', value: 3},
+      { title: 'Prometheus URL', description: 'Manage the Prometheus URL', value: 4},
     ],
     initial: 0,
     hint: '- Space to select'
@@ -393,6 +457,16 @@ async function promtForPrometheusConfigLocation(){
     type: 'text',
     name: 'value',
     message: 'Enther Prometheus config file location (eg: /etc/prometheus/prometheus.yml)',
+  });
+
+  return response.value;
+}
+
+async function promtForPrometheusUrl(){//TODO: Do all text promts need to be different
+  const response = await prompts({
+    type: 'text',
+    name: 'value',
+    message: 'Enther Prometheus URL (eg: http://localhost:9090)',
   });
 
   return response.value;
@@ -571,6 +645,26 @@ async function prometheusConfig(){
   }
 }
 
+async function prometheusUrl(){
+  let prometheusUrl = process.env.PROMETHEUS_URL;
+
+  if (prometheusUrl === undefined || prometheusUrl === ''){
+    console.log("[-] Error: No prometheus URL set");
+    setPrometheusUrl();
+  } 
+  else {
+    console.log("Current Prometheus URL: " + chalk.green(prometheusUrl));
+    NEWLINE();
+    let response = await promptYesOrNo('Change URL?');
+    if (response === true) {
+      setPrometheusUrl();
+    }
+    else {
+      setTimeout(menu, MENU_SLEEP_TIME);
+    }
+  }
+}
+
 async function replaceStringVariables(jsonString){
   const regex = /{{\w+}}/g;
   let replace = jsonString;
@@ -603,3 +697,6 @@ async function replaceIntVariables(jsonString){
 
  // uid: pmr8WlZRk 
  // key: eyJrIjoiTTJWd2dwZkpqYkxhbncyeTU1cmxEU1hOc2tONnBYSTkiLCJuIjoiR3JhZlBBRCIsImlkIjoxfQ==
+
+
+ //PTT HAPTIC FEEDBACK NOT WORKING ON SOME PHONES
