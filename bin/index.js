@@ -3,6 +3,7 @@
 // ----- IMPORTS -----
 const fs = require('fs'); // File system 
 const {exec} = require('child_process'); // Command line
+const path = require('path'); // Cross platform path tool
 
 const yargs = require('yargs'); // Command line arguements
 const axios = require('axios'); // HTTP Client
@@ -18,9 +19,9 @@ require('dotenv').config(); // Environment variable
 
 // ----- CONSTANTS -----
 const options = yargs.argv; // Get command line options eg: debug
-const TEMPLATES_DIR = 'store\\templates';
-const TEMP_DIR = 'store\\temp';
-const SAVED_DIR = 'store\\saved';
+const TEMPLATES_DIR = path.join('store', 'templates');
+const TEMP_DIR = path.join('store', 'temp');
+const SAVED_DIR = path.join('store', 'saved');
 const MENU_SLEEP_TIME = 1500;
 const NEWLINE = () => console.log('\n');
 
@@ -178,7 +179,8 @@ function menuAddGatewayToNodeRed(){ //TODO: This should be setup to handle api k
       console.log(chalk.green('Successfully got Node-RED active flows configuration'));
 
       // Save the downloaded config file 
-      fs.writeFileSync(TEMP_DIR + '\\nodered_flows.json', JSON.stringify(res.data));
+      const path = path.join(TEMP_DIR, 'nodered_flows.json');
+      fs.writeFileSync(path, JSON.stringify(res.data));
     }
     else {
       NEWLINE();
@@ -198,8 +200,9 @@ function menuAddGatewayToPrometheus(){
       console.log(chalk.green('Successfully got config file'));
 
       // Save the downloaded config file and open it in yaml module
-      fs.writeFileSync(TEMP_DIR + '\\prometheus_config.yml', res.data.data.yaml);
-      let doc = yaml.safeLoad(fs.readFileSync(TEMP_DIR + '\\prometheus_config.yml'));
+      const path = path.join(TEMP_DIR, 'prometheus_config.yml');
+      fs.writeFileSync(path, res.data.data.yaml);
+      let doc = yaml.safeLoad(fs.readFileSync(path));
       console.log(doc);
 
       // Loop through configs to add gateway to
@@ -211,8 +214,9 @@ function menuAddGatewayToPrometheus(){
           console.log(chalk.green('Added shrike.ttnliv.uk:8105 to ' + name));
         }
       }
+
       // Save the new yaml file
-      fs.writeFileSync(TEMP_DIR + '\\prometheus_config.yml', yaml.safeDump(doc)); //TODO back up the old one
+      fs.writeFileSync(path, yaml.safeDump(doc)); //TODO back up the old one
 
       // exec('sudo service prometheus restart', (err, stdout, stderr) => { //TODO restart prometheus
       //   if (err) {
@@ -395,7 +399,8 @@ function getTemplateName(templateChoice){ // TODO: THIS WILL BREAK IF THERE ARE 
 }
 
 function setDashboardJsonToDisk(json) {
-  fs.writeFileSync(SAVED_DIR + '\\json.json', JSON.stringify(json)); //TODO: These should be in a try catch
+  const path = path.join(SAVED_DIR, 'json.json');
+  fs.writeFileSync(path, JSON.stringify(json)); //TODO: These should be in a try catch
 
   openDir(SAVED_DIR);
 }
@@ -558,10 +563,11 @@ function openDir(dir){
 async function handleDashboardJson(json){
   // Save the json as a file
   let jsonString = JSON.stringify(json);
-  fs.writeFileSync(TEMP_DIR + '\\temp.json', jsonString);
+  const path = path.join(TEMP_DIR, 'temp.json');
+  fs.writeFileSync(path, jsonString);
 
   // Load the dashboard json file to edit
-  let jsonFile = editJsonFile(`${TEMP_DIR}\\temp.json`);
+  let jsonFile = editJsonFile(path);
 
   // Pull out dashboard panel object and get the last grid coordinates
   var jsonPanels = jsonFile.get('dashboard.panels');
@@ -572,7 +578,8 @@ async function handleDashboardJson(json){
   let noOfTemplates = displayTemplates();
   let templateChoice = await promtForTemplate(noOfTemplates);
   let templateName = getTemplateName(templateChoice);
-  let rawTemplate = fs.readFileSync(`${TEMPLATES_DIR}\\${templateName}.json`) //TODO: Check the template and warn if it doesnt look like grafana json
+  const templatePath = path.join(TEMPLATES_DIR, `${templateName}.json`);
+  let rawTemplate = fs.readFileSync(templatePath) //TODO: Check the template and warn if it doesnt look like grafana json
   var template = JSON.parse(rawTemplate);
 
   //Give random ID and itterate on the position
