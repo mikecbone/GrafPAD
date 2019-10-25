@@ -1,0 +1,77 @@
+[
+  {
+      "id": "d419c2a0.6647f",
+      "type": "ping",
+      "z": "4ccf9c67.de5d94",
+      "name": "",
+      "host": "{{HOST}}",
+      "timer": "60",
+      "x": 150,
+      "y": 80,
+      "wires": [
+          [
+              "ff11aacf.905ef8"
+          ]
+      ]
+  },
+  {
+      "id": "ff11aacf.905ef8",
+      "type": "function",
+      "z": "4ccf9c67.de5d94",
+      "name": "Set Device Params",
+      "func": "msg.ping = msg.payload\nmsg.devId = \"{{DEVICE_NAME}}\"\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "x": 350,
+      "y": 80,
+      "wires": [
+          [
+              "a1b53515.d8dc48"
+          ]
+      ]
+  },
+  {
+      "id": "a1b53515.d8dc48",
+      "type": "link out",
+      "z": "4ccf9c67.de5d94",
+      "name": "TTN_LIV_PING",
+      "links": [
+          "4422fa4a.5e2044"
+      ],
+      "x": 515,
+      "y": 80,
+      "wires": []
+  },
+  {
+      "id": "4f7c53c5.e080ac",
+      "type": "inject",
+      "z": "4ccf9c67.de5d94",
+      "name": "Rosamund",
+      "topic": "",
+      "payload": "{{EUI}}",
+      "payloadType": "str",
+      "repeat": "300",
+      "crontab": "",
+      "once": true,
+      "onceDelay": 0.1,
+      "x": 150,
+      "y": 140,
+      "wires": [
+          [
+              "63b8e8b.2c29418"
+          ]
+      ]
+  },
+  {
+      "id": "63b8e8b.2c29418",
+      "type": "link out",
+      "z": "4ccf9c67.de5d94",
+      "name": "TTN_LIV",
+      "links": [
+          "b9293a8d.e3e188"
+      ],
+      "x": 375,
+      "y": 140,
+      "wires": []
+  }
+]

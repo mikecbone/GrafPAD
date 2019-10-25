@@ -36,7 +36,9 @@ else {
   setTimeout(menu, 700);
 }
 
-// ----- INIT FUNCTION -----
+/**
+ * Initialise GrafPAD with required folder structure and files
+ */
 async function initialise(){
   setFolderStructure();
   await setGrafanaUrl();
@@ -52,8 +54,8 @@ function title() {
   console.log(
     boxen(
       chalk.hex('FF7700')(figlet.textSync("GrafPAD")+"\nGrafana Panel and Dashboard Editing Tool")
-      + chalk.yellow('\n-Support for Prometheus and Node-RED-')
-      + chalk.magenta('\nv0.1.0 - By mikecbone'), 
+      + chalk.yellow('\n- Support for Prometheus and Node-RED -')
+      + chalk.magenta('\nv0.1.0 - the Red Dev Team'), 
       {
         padding: 1, float: 'center', align: 'center', border: 'bold'
       }
@@ -158,8 +160,32 @@ async function menuDashboardJsonByUid(){
   });
 }
 
-function menuAddGatewayToNodeRed(){
-  setTimeout(menu, MENU_SLEEP_TIME);
+function menuAddGatewayToNodeRed(){ //TODO: This should be setup to handle api keys if needed
+  const url = 'http://tatooine.local:1880' + '/flow/96cab97e.c658f8';
+
+  axios.get(
+    url, {
+      headers: {
+        'Accept': "application/json", 
+        'Content-Type': 'application/json', 
+        //'Authorization': 'Bearer ' + process.env.API_KEY
+      }
+    }
+  ).then(async res => {
+    if(res.status === 200){
+      NEWLINE();
+      console.log(`${res.status}: ${res.statusText}`);
+      console.log(chalk.green('Successfully got Node-RED active flows configuration'));
+
+      // Save the downloaded config file 
+      fs.writeFileSync(TEMP_DIR + '\\nodered_flows.json', JSON.stringify(res.data));
+    }
+    else {
+      NEWLINE();
+      console.log(`${res.status}: ${res.statusText}`);
+      console.log(chalk.red('Error contacting Node-RED'));
+    }
+  });
 }
 
 function menuAddGatewayToPrometheus(){
@@ -172,8 +198,8 @@ function menuAddGatewayToPrometheus(){
       console.log(chalk.green('Successfully got config file'));
 
       // Save the downloaded config file and open it in yaml module
-      fs.writeFileSync(TEMP_DIR + '\\temp.yml', res.data.data.yaml);
-      let doc = yaml.safeLoad(fs.readFileSync(TEMP_DIR + '\\temp.yml'));
+      fs.writeFileSync(TEMP_DIR + '\\prometheus_config.yml', res.data.data.yaml);
+      let doc = yaml.safeLoad(fs.readFileSync(TEMP_DIR + '\\prometheus_config.yml'));
       console.log(doc);
 
       // Loop through configs to add gateway to
@@ -186,7 +212,7 @@ function menuAddGatewayToPrometheus(){
         }
       }
       // Save the new yaml file
-      fs.writeFileSync(TEMP_DIR + '\\temp.yml', yaml.safeDump(doc)); //TODO back up the old one
+      fs.writeFileSync(TEMP_DIR + '\\prometheus_config.yml', yaml.safeDump(doc)); //TODO back up the old one
 
       // exec('sudo service prometheus restart', (err, stdout, stderr) => { //TODO restart prometheus
       //   if (err) {
@@ -225,6 +251,9 @@ async function menuManageVariables(){
       case 4:
         prometheusUrl();
         break;
+      case 99:
+        setTimeout(menu, MENU_SLEEP_TIME);
+        break;
       default:
         console.log("Nothing selected. Exiting...");
         exitApp();
@@ -254,7 +283,7 @@ function setFolderStructure(){
     fs.writeFileSync('.env', '');
   }
   if (!fs.existsSync('.gitignore')){
-    fs.writeFileSync('.gitignore', '.env\nnode_modules\n');
+    fs.writeFileSync('.gitignore', '.env\nnode_modules\nstore/temp\n');
   }
   console.log(chalk.green('Folder Structure Set\n'));
 }
@@ -393,6 +422,7 @@ async function promtManageVariables(){
       { title: 'Grafana API Key', description: 'Manage the Grafana API key', value: 2},
       { title: 'Prometheus Config', description: 'Manage the Prometheus config file location', value: 3},
       { title: 'Prometheus URL', description: 'Manage the Prometheus URL', value: 4},
+      { title: 'Main Menu', description: 'Go back to the main menu', value: 99},
     ],
     initial: 0,
     hint: '- Space to select'
@@ -542,7 +572,7 @@ async function handleDashboardJson(json){
   let noOfTemplates = displayTemplates();
   let templateChoice = await promtForTemplate(noOfTemplates);
   let templateName = getTemplateName(templateChoice);
-  let rawTemplate = fs.readFileSync(`${TEMPLATES_DIR}\\${templateName}.json`)
+  let rawTemplate = fs.readFileSync(`${TEMPLATES_DIR}\\${templateName}.json`) //TODO: Check the template and warn if it doesnt look like grafana json
   var template = JSON.parse(rawTemplate);
 
   //Give random ID and itterate on the position
@@ -600,7 +630,7 @@ async function grafanaApiKey(){
       setGrafanaApiKey();
     }
     else {
-      setTimeout(menu, MENU_SLEEP_TIME);
+      menuManageVariables();
     }
   }
 }
@@ -620,7 +650,7 @@ async function grafanaUrl(){
       setGrafanaUrl();
     }
     else {
-      setTimeout(menu, MENU_SLEEP_TIME);
+      menuManageVariables();
     }
   }
 }
@@ -640,7 +670,7 @@ async function prometheusConfig(){
       setPrometheusConfigLocation();
     }
     else {
-      setTimeout(menu, MENU_SLEEP_TIME);
+      menuManageVariables();
     }
   }
 }
@@ -660,7 +690,7 @@ async function prometheusUrl(){
       setPrometheusUrl();
     }
     else {
-      setTimeout(menu, MENU_SLEEP_TIME);
+      menuManageVariables();
     }
   }
 }
@@ -696,7 +726,9 @@ async function replaceIntVariables(jsonString){
 }
 
  // uid: pmr8WlZRk 
- // key: eyJrIjoiTTJWd2dwZkpqYkxhbncyeTU1cmxEU1hOc2tONnBYSTkiLCJuIjoiR3JhZlBBRCIsImlkIjoxfQ==
 
-
- //PTT HAPTIC FEEDBACK NOT WORKING ON SOME PHONES
+ // init:
+ // http://tatooine.local:3000
+ // eyJrIjoiTTJWd2dwZkpqYkxhbncyeTU1cmxEU1hOc2tONnBYSTkiLCJuIjoiR3JhZlBBRCIsImlkIjoxfQ==
+ // /etc/prometheus/prometheus.yml
+ // http://tatooine.local:9090
