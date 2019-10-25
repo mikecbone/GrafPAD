@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
-// ----- IMPORTS -----
+// ----- INTERNAL IMPORTS -----
 const fs = require('fs'); // File system 
 const {exec} = require('child_process'); // Command line
 const path = require('path'); // Cross platform path tool
 
+// ----- ADDITIONAL IMPORTS -----
 const yargs = require('yargs'); // Command line arguements
 const axios = require('axios'); // HTTP Client
 const boxen = require('boxen'); // Boxes in terminal
@@ -15,7 +16,7 @@ const openExplorer = require('open-file-explorer'); // File explorer
 const editJsonFile = require('edit-json-file'); // JSON editor
 const yaml = require('js-yaml'); // YAML editor
 
-require('dotenv').config(); // Environment variable
+require('dotenv').config(); // Load environment variables TODO: Check this works on global install
 
 // ----- CONSTANTS -----
 const options = yargs.argv; // Get command line options eg: debug
@@ -49,7 +50,9 @@ async function initialise(){
   fs.appendFileSync('.env', '\nINIT=true');
 }
 
-// ----- TITLE AND MENU -----
+/**
+ * Show the title box
+ */
 function title() {
   // Title
   console.log(
@@ -64,6 +67,9 @@ function title() {
   );
 }
 
+/**
+ * Show the main menu
+ */
 async function menu(){
   NEWLINE();
   (async () => {
@@ -129,7 +135,7 @@ async function menuTemplates(){
 }
 
 async function menuPanelByUid(){
-  let uid = await promptForDashboardUid();
+  let uid = await promptForUid('Enter dashboard UID');
 
   if (uid === undefined || uid === '') {
     console.log(chalk.red('[-] Error: Undefined UID'));
@@ -142,7 +148,7 @@ async function menuPanelByUid(){
 }
 
 async function menuDashboardJsonByUid(){
-  let uid = await promptForDashboardUid();
+  let uid = await promptForUid('Enter dashboard UID');
 
   if (uid === undefined || uid === '') {
     console.log(chalk.red('[-] Error: Undefined UID'));
@@ -161,17 +167,22 @@ async function menuDashboardJsonByUid(){
   });
 }
 
-function menuAddGatewayToNodeRed(){ //TODO: This should be setup to handle api keys if needed
-  const url = 'http://tatooine.local:1880' + '/flow/96cab97e.c658f8';
+async function menuAddGatewayToNodeRed(){ //TODO: This should be setup to handle api keys if needed
+  let uid = await promptForUid('Enter flow UID');
+  const url = 'http://tatooine.local:1880' + '/flow/' + uid; //96cab97e.c658f8 TODO: Add node red url to initialise
+
+  let config = {
+    headers: {
+      'Accept': "application/json", 
+      'Content-Type': 'application/json',
+    }
+  }
+
+  // Add API key header if available
+  process.env.NODERED_API ? headers.Authorization = 'Bearer ' + process.env.NODE_API_KEY : null;
 
   axios.get(
-    url, {
-      headers: {
-        'Accept': "application/json", 
-        'Content-Type': 'application/json', 
-        //'Authorization': 'Bearer ' + process.env.API_KEY
-      }
-    }
+    url, config
   ).then(async res => {
     if(res.status === 200){
       NEWLINE();
@@ -179,8 +190,8 @@ function menuAddGatewayToNodeRed(){ //TODO: This should be setup to handle api k
       console.log(chalk.green('Successfully got Node-RED active flows configuration'));
 
       // Save the downloaded config file 
-      const path = path.join(TEMP_DIR, 'nodered_flows.json');
-      fs.writeFileSync(path, JSON.stringify(res.data));
+      const dirPath = path.join(TEMP_DIR, 'nodered_flows.json');
+      fs.writeFileSync(dirPath, JSON.stringify(res.data));
     }
     else {
       NEWLINE();
@@ -200,9 +211,9 @@ function menuAddGatewayToPrometheus(){
       console.log(chalk.green('Successfully got config file'));
 
       // Save the downloaded config file and open it in yaml module
-      const path = path.join(TEMP_DIR, 'prometheus_config.yml');
-      fs.writeFileSync(path, res.data.data.yaml);
-      let doc = yaml.safeLoad(fs.readFileSync(path));
+      const dirPath = path.join(TEMP_DIR, 'prometheus_config.yml');
+      fs.writeFileSync(dirPath, res.data.data.yaml);
+      let doc = yaml.safeLoad(fs.readFileSync(dirPath));
       console.log(doc);
 
       // Loop through configs to add gateway to
@@ -216,17 +227,18 @@ function menuAddGatewayToPrometheus(){
       }
 
       // Save the new yaml file
-      fs.writeFileSync(path, yaml.safeDump(doc)); //TODO back up the old one
+      fs.writeFileSync(dirPath, yaml.safeDump(doc)); //TODO back up the old one
 
-      // exec('sudo service prometheus restart', (err, stdout, stderr) => { //TODO restart prometheus
-      //   if (err) {
-      //     console.log(err);
-      //     return;
-      //   }
+      exec('sudo service prometheus restart', (err, stdout, stderr) => { //TODO restart prometheus
+        if (err) {
+          //console.log(err);
+          console.log(chalk.red('[-] Error: Cannot restart Prometheus'));
+          return;
+        }
 
-      //   console.log(stdout);
-      //   console.log(stderr);
-      // });
+        console.log(stdout);
+        console.log(stderr);
+      });
 
       setTimeout(menu, MENU_SLEEP_TIME);
     }
@@ -283,12 +295,10 @@ function setFolderStructure(){
   if (!fs.existsSync(SAVED_DIR)){
     fs.mkdirSync(SAVED_DIR);
   }
-  if (!fs.existsSync('.env')){
-    fs.writeFileSync('.env', '');
-  }
   if (!fs.existsSync('.gitignore')){
     fs.writeFileSync('.gitignore', '.env\nnode_modules\nstore/temp\n');
   }
+  fs.writeFileSync('.env', '');
   console.log(chalk.green('Folder Structure Set\n'));
 }
 
@@ -309,11 +319,11 @@ async function setGrafanaApiKey(){
   let apiKey = await promptForGrafanaApi();
 
   if (apiKey != undefined && apiKey != ''){
-    fs.appendFileSync('.env', '\nAPI_KEY='+apiKey);
-    console.log(chalk.green('API Key Set\n'));
+    fs.appendFileSync('.env', '\nGRAFANA_API_KEY='+apiKey);
+    console.log(chalk.green('Grafana API Key Set\n'));
   }
   else {
-    console.log(chalk.red('API Key Undefined'));
+    console.log(chalk.red('Grafana API Key Undefined'));
     process.exit();
   }
 }
@@ -353,7 +363,7 @@ async function getDashboardJsonByUid(uid, callback){
       headers: {
         'Accept': "application/json", 
         'Content-Type': 'application/json', 
-        'Authorization': 'Bearer ' + process.env.API_KEY
+        'Authorization': 'Bearer ' + process.env.GRAFANA_API_KEY
       }
     }
   ).then(res => {
@@ -373,7 +383,7 @@ async function setDashboardJsonByUid(json){
       headers: {
         'Accept': "application/json", 
         'Content-Type': 'application/json', 
-        'Authorization': 'Bearer ' + process.env.API_KEY
+        'Authorization': 'Bearer ' + process.env.GRAFANA_API_KEY
       }
     }
   ).then(res => {
@@ -399,8 +409,8 @@ function getTemplateName(templateChoice){ // TODO: THIS WILL BREAK IF THERE ARE 
 }
 
 function setDashboardJsonToDisk(json) {
-  const path = path.join(SAVED_DIR, 'json.json');
-  fs.writeFileSync(path, JSON.stringify(json)); //TODO: These should be in a try catch
+  const dirPath = path.join(SAVED_DIR, 'json.json');
+  fs.writeFileSync(dirPath, JSON.stringify(json)); //TODO: These should be in a try catch
 
   openDir(SAVED_DIR);
 }
@@ -452,11 +462,11 @@ async function promptShowOrAddTemplates(){
   return response.value;
 }
 
-async function promptForDashboardUid(){
+async function promptForUid(message){
   const response = await prompts({
     type: 'text',
     name: 'value',
-    message: 'Enter dashboard UID',
+    message: message,
     validate: value => value.length < 5 ? "UID too small" : true
   });
 
@@ -549,11 +559,11 @@ function addNewTemplate(){
 }
 
 function openDir(dir){
-  var path = __dirname;
-  let splits = path.split('bin');
-  var path = splits[0] + dir;
+  var dirPath = __dirname;
+  let splits = dirPath.split('bin');
+  var dirPath = splits[0] + dir;
 
-  openExplorer(path, err => {
+  openExplorer(dirPath, err => {
     if(err) {
       console.log(err);
     }
@@ -563,11 +573,11 @@ function openDir(dir){
 async function handleDashboardJson(json){
   // Save the json as a file
   let jsonString = JSON.stringify(json);
-  const path = path.join(TEMP_DIR, 'temp.json');
-  fs.writeFileSync(path, jsonString);
+  const dirPath = path.join(TEMP_DIR, 'temp.json');
+  fs.writeFileSync(dirPath, jsonString);
 
   // Load the dashboard json file to edit
-  let jsonFile = editJsonFile(path);
+  let jsonFile = editJsonFile(dirPath);
 
   // Pull out dashboard panel object and get the last grid coordinates
   var jsonPanels = jsonFile.get('dashboard.panels');
@@ -623,16 +633,16 @@ function displayTemplates(){
 }
 
 async function grafanaApiKey(){
-  let apiKey = process.env.API_KEY;
+  let apiKey = process.env.GRAFANA_API_KEY;
 
   if (apiKey === undefined || apiKey === ''){
-    console.log("[-] Error: No grafana key set");
+    console.log("[-] Error: No grafana key API set");
     setGrafanaApiKey();
   } 
   else {
     console.log("Current Grafana API Key: " + chalk.green(apiKey));
     NEWLINE();
-    let response = await promptYesOrNo('Change API Key?');
+    let response = await promptYesOrNo('Change Grafana API Key?');
     if (response === true) {
       setGrafanaApiKey();
     }
