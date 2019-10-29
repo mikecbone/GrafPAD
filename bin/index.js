@@ -16,15 +16,20 @@ const openExplorer = require('open-file-explorer'); // File explorer
 const editJsonFile = require('edit-json-file'); // JSON editor
 const yaml = require('js-yaml'); // YAML editor
 
-require('dotenv').config(); // Load environment variables TODO: Check this works on global install
-
 // ----- CONSTANTS -----
 const options = yargs.argv; // Get command line options eg: debug
-const TEMPLATES_DIR = path.join('store', 'templates');
-const TEMP_DIR = path.join('store', 'temp');
-const SAVED_DIR = path.join('store', 'saved');
+const dirPath = __dirname.split('bin')[0];
 const MENU_SLEEP_TIME = 1500;
 const NEWLINE = () => console.log('\n');
+
+const STORE_DIR = path.join(dirPath, 'store')
+const ENV_FILE = path.join(dirPath, '.env');
+const GIT_FILE = path.join(dirPath, '.gitignore');
+const TEMPLATES_DIR = path.join(STORE_DIR, 'templates');
+const TEMP_DIR = path.join(STORE_DIR, 'temp');
+const SAVED_DIR = path.join(STORE_DIR, 'saved');
+
+require('dotenv').config({path: ENV_FILE});
 
 // ----- OPENING CODE -----
 if (options.init){
@@ -47,7 +52,7 @@ async function initialise(){
   await setGrafanaApiKey();
   await setPrometheusConfigLocation();
   await setPrometheusUrl();
-  fs.appendFileSync('.env', '\nINIT=true');
+  fs.appendFileSync(ENV_FILE, '\nINIT=true');
 }
 
 /**
@@ -283,8 +288,8 @@ function exitApp(){
 
 // ----- SET AND GETS -----
 function setFolderStructure(){
-  if (!fs.existsSync('store')){
-    fs.mkdirSync('store');
+  if (!fs.existsSync(STORE_DIR)){
+    fs.mkdirSync(STORE_DIR);
   }
   if (!fs.existsSync(TEMPLATES_DIR)){
     fs.mkdirSync(TEMPLATES_DIR);
@@ -295,10 +300,10 @@ function setFolderStructure(){
   if (!fs.existsSync(SAVED_DIR)){
     fs.mkdirSync(SAVED_DIR);
   }
-  if (!fs.existsSync('.gitignore')){
-    fs.writeFileSync('.gitignore', '.env\nnode_modules\nstore/temp\n.DS_Store\n');
+  if (!fs.existsSync(GIT_FILE)){
+    fs.writeFileSync(GIT_FILE, '.env\nnode_modules\nstore/temp\n.DS_Store\n');
   }
-  fs.writeFileSync('.env', '');
+  fs.writeFileSync(ENV_FILE, '');
   console.log(chalk.green('Folder Structure Set\n'));
 }
 
@@ -306,7 +311,7 @@ async function setGrafanaUrl(){
   let url = await promtForGrafanaUrl();
 
   if (url != undefined && url != ''){
-    fs.appendFileSync('.env', '\nGRAFANA_URL='+url);
+    fs.appendFileSync(ENV_FILE, '\nGRAFANA_URL='+url);
     console.log(chalk.green('Grafana URL Set\n'));
   }
   else {
@@ -319,7 +324,7 @@ async function setGrafanaApiKey(){
   let apiKey = await promptForGrafanaApi();
 
   if (apiKey != undefined && apiKey != ''){
-    fs.appendFileSync('.env', '\nGRAFANA_API_KEY='+apiKey);
+    fs.appendFileSync(ENV_FILE, '\nGRAFANA_API_KEY='+apiKey);
     console.log(chalk.green('Grafana API Key Set\n'));
   }
   else {
@@ -332,7 +337,7 @@ async function setPrometheusConfigLocation(){
   let location = await promtForPrometheusConfigLocation();
   
   if (location != undefined && location != ''){
-    fs.appendFileSync('.env', '\nPROMETHEUS_CONFIG='+location);
+    fs.appendFileSync(ENV_FILE, '\nPROMETHEUS_CONFIG='+location);
     console.log(chalk.green('Prometheus Config Location Set\n'));
   }
   else {
@@ -345,7 +350,7 @@ async function setPrometheusUrl(){
   let location = await promtForPrometheusUrl();
   
   if (location != undefined && location != ''){
-    fs.appendFileSync('.env', '\nPROMETHEUS_URL='+location);
+    fs.appendFileSync(ENV_FILE, '\nPROMETHEUS_URL='+location);
     console.log(chalk.green('Prometheus URL Set\n'));
   }
   else {
