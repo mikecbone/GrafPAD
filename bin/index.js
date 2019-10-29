@@ -296,7 +296,7 @@ function setFolderStructure(){
     fs.mkdirSync(SAVED_DIR);
   }
   if (!fs.existsSync('.gitignore')){
-    fs.writeFileSync('.gitignore', '.env\nnode_modules\nstore/temp\n');
+    fs.writeFileSync('.gitignore', '.env\nnode_modules\nstore/temp\n.DS_Store\n');
   }
   fs.writeFileSync('.env', '');
   console.log(chalk.green('Folder Structure Set\n'));
