@@ -4,6 +4,7 @@
 const fs = require('fs'); // File system 
 const {exec} = require('child_process'); // Command line
 const path = require('path'); // Cross platform path tool
+const os = require('os'); // For OS agnostic newlines
 
 // ----- ADDITIONAL IMPORTS -----
 const yargs = require('yargs'); // Command line arguements
@@ -21,14 +22,33 @@ const uuidv4 = require('uuid/v4'); // Random IDs
 const options = yargs.argv; // Get command line options eg: debug
 const dirPath = __dirname.split('bin')[0];
 const MENU_SLEEP_TIME = 1500;
-const NEWLINE = () => console.log('\n');
+const NEWLINE = () => console.log(os.EOL);
 
 const STORE_DIR = path.join(dirPath, 'store')
 const ENV_FILE = path.join(dirPath, '.env');
 const GIT_FILE = path.join(dirPath, '.gitignore');
 const TEMPLATES_DIR = path.join(STORE_DIR, 'templates');
-const TEMP_DIR = path.join(STORE_DIR, 'temp');
 const SAVED_DIR = path.join(STORE_DIR, 'saved');
+const TEMP_DIR = os.tmpdir();
+
+const GRAFANA_URL_MESSAGE = 'Enter Grafana URL (eg: http://localhost:3000)';
+const GRAFANA_URL_ENVNAME = 'GRAFANA_URL';
+const GRAFANA_URL_NAME = 'Grafana URL'
+const GRAFANA_API_MESSAGE = 'Enter Grafana API Key';
+const GRAFANA_API_ENVNAME = 'GRAFANA_API_KEY';
+const GRAFANA_API_NAME = 'Grafana API Key';
+const NODERED_URL_MESSAGE = 'Enter Node-RED URL (eg: http://localhost:1880)';
+const NODERED_URL_ENVNAME = 'NODERED_URL';
+const NODERED_URL_NAME = 'Node-RED URL'
+const NODERED_API_MESSAGE = 'Enter Node-RED API Key';
+const NODERED_API_ENVNAME = 'NODERED_API_KEY';
+const NODERED_API_NAME = 'Node-RED API Key';
+const PROMETHEUS_URL_MESSAGE = 'Enter Prometheus URL (eg: http://localhost:9090)';
+const PROMETHEUS_URL_ENVNAME = 'PROMETHEUS_URL';
+const PROMETHEUS_URL_NAME = 'Prometheus URL'
+const PROMETHEUS_CONFIG_MESSAGE = 'Enter Prometheus config file location (eg: /etc/prometheus/prometheus.yml)';
+const PROMETHEUS_CONFIG_ENVNAME = 'PROMETHEUS_CONFIG';
+const PROMETHEUS_CONFIG_NAME = 'Prometheus Config Location';
 
 require('dotenv').config({path: ENV_FILE});
 
@@ -49,12 +69,12 @@ else {
  */
 async function initialise(){
   setFolderStructure();
-  await setGrafanaUrl();
-  await setGrafanaApiKey();
-  await setPrometheusConfigLocation();
-  await setPrometheusUrl();
-  await setNodeRedUrl();
-  await setNodeRedApiKey();
+  await setEnvVar(GRAFANA_URL_MESSAGE, GRAFANA_URL_NAME, GRAFANA_URL_ENVNAME);
+  await setEnvVar(GRAFANA_API_MESSAGE, GRAFANA_API_NAME, GRAFANA_API_ENVNAME);
+  await setEnvVar(NODERED_URL_MESSAGE, NODERED_URL_NAME, NODERED_URL_ENVNAME);
+  await setEnvVar(NODERED_API_MESSAGE, NODERED_API_NAME, NODERED_API_ENVNAME);
+  await setEnvVar(PROMETHEUS_URL_MESSAGE, PROMETHEUS_URL_NAME, PROMETHEUS_URL_ENVNAME);
+  await setEnvVar(PROMETHEUS_CONFIG_MESSAGE, PROMETHEUS_CONFIG_NAME, PROMETHEUS_CONFIG_ENVNAME);
   fs.appendFileSync(ENV_FILE, '\nINIT=true');
 }
 
@@ -66,8 +86,8 @@ function title() {
   console.log(
     boxen(
       chalk.hex('FF7700')(figlet.textSync("GrafPAD")+"\nGrafana Panel and Dashboard Editing Tool")
-      + chalk.yellow('\n- Support for Prometheus and Node-RED -')
-      + chalk.magenta('\nv0.1.0 - the Red Dev Team'), 
+      + chalk.yellow('\n- Support for Prometheus and Node-RED -\n')
+      + chalk.magenta(os.platform() + os.arch() + ' - v0.1.0 - the Red Dev Team'),
       {
         padding: 1, float: 'center', align: 'center', border: 'bold'
       }
@@ -138,7 +158,8 @@ async function menuTemplates(){
     setTimeout(menu, MENU_SLEEP_TIME);
   }
   else if (response === 2) {
-    addNewTemplate();
+    openDir(TEMPLATES_DIR);
+    setTimeout(menu, MENU_SLEEP_TIME);
   }
 }
 
@@ -175,7 +196,7 @@ async function menuDashboardJsonByUid(){
   });
 }
 
-async function menuAddGatewayToNodeRed(){ //TODO: Make the template link up IDs and then regex them
+async function menuAddGatewayToNodeRed(){ //TODO: Refactor this method
   let uid = await promptForUid('Enter flow UID');
   const url = process.env.NODERED_URL + '/flow/' + uid;
 
@@ -264,7 +285,7 @@ async function menuAddGatewayToNodeRed(){ //TODO: Make the template link up IDs 
   });
 }
 
-function menuAddGatewayToPrometheus(){
+function menuAddGatewayToPrometheus(){ //TODO: Refactor this method
   const url = process.env.PROMETHEUS_URL + "/api/v1/status/config";
 
   axios.get(url).then(async res => {
@@ -292,7 +313,7 @@ function menuAddGatewayToPrometheus(){
       // Save the new yaml file
       fs.writeFileSync(dirPath, yaml.safeDump(doc)); //TODO back up the old one
 
-      exec('sudo service prometheus restart', (err, stdout, stderr) => { //TODO restart prometheus
+      exec('sudo service prometheus restart && sudo service prometheus status', (err, stdout, stderr) => { //TODO restart prometheus
         if (err) {
           //console.log(err);
           console.log(chalk.red('[-] Error: Cannot restart Prometheus'));
@@ -319,16 +340,22 @@ async function menuManageVariables(){
   switch (response)
     {
       case 1:
-        grafanaUrl();
+        manageEnvVar(process.env.GRAFANA_URL, GRAFANA_URL_MESSAGE, GRAFANA_URL_NAME, GRAFANA_URL_ENVNAME);
         break;
       case 2:
-        grafanaApiKey();
+        manageEnvVar(process.env.GRAFANA_API_KEY, GRAFANA_API_MESSAGE, GRAFANA_API_NAME, GRAFANA_API_ENVNAME);
         break;
       case 3:
-        prometheusConfig();
+        manageEnvVar(process.env.NODERED_URL, NODERED_URL_MESSAGE, NODERED_URL_NAME, NODERED_URL_ENVNAME);
         break;
       case 4:
-        prometheusUrl();
+        manageEnvVar(process.env.NODERED_API_KEY, NODERED_API_MESSAGE, NODERED_API_NAME, NODERED_API_ENVNAME); //TODO: Make this not required?
+        break;
+      case 5:
+        manageEnvVar(process.env.PROMETHEUS_URL, PROMETHEUS_URL_MESSAGE, PROMETHEUS_URL_NAME, PROMETHEUS_URL_ENVNAME);
+        break;
+      case 6:
+        manageEnvVar(process.env.PROMETHEUS_CONFIG, PROMETHEUS_CONFIG_MESSAGE, PROMETHEUS_CONFIG_NAME, PROMETHEUS_CONFIG_ENVNAME);
         break;
       case 99:
         setTimeout(menu, MENU_SLEEP_TIME);
@@ -352,9 +379,6 @@ function setFolderStructure(){
   if (!fs.existsSync(TEMPLATES_DIR)){
     fs.mkdirSync(TEMPLATES_DIR);
   }
-  if (!fs.existsSync(TEMP_DIR)){
-    fs.mkdirSync(TEMP_DIR);
-  }
   if (!fs.existsSync(SAVED_DIR)){
     fs.mkdirSync(SAVED_DIR);
   }
@@ -365,79 +389,15 @@ function setFolderStructure(){
   console.log(chalk.green('Folder Structure Set\n'));
 }
 
-async function setGrafanaUrl(){
-  let url = await promtForUrl('Enther Grafana URL (eg: http://localhost:3000)');
+async function setEnvVar(message, name, envName){
+  let env = await promtForInput(message);
 
-  if (url != undefined && url != ''){
-    fs.appendFileSync(ENV_FILE, '\nGRAFANA_URL='+url);
-    console.log(chalk.green('Grafana URL Set\n'));
+  if (env != undefined && env != ''){
+    fs.appendFileSync(ENV_FILE, '\n'+envName+'='+env);
+    console.log(chalk.green(name + 'Set\n'));
   }
   else {
-    console.log(chalk.red('Grafana URL Undefined'));
-    process.exit();
-  }
-}
-
-async function setGrafanaApiKey(){
-  let apiKey = await promptForApi('Enter Grafana API Key');
-
-  if (apiKey != undefined && apiKey != ''){
-    fs.appendFileSync(ENV_FILE, '\nGRAFANA_API_KEY='+apiKey);
-    console.log(chalk.green('Grafana API Key Set\n'));
-  }
-  else {
-    console.log(chalk.red('Grafana API Key Undefined'));
-    process.exit();
-  }
-}
-async function setNodeRedUrl(){
-  let url = await promtForUrl('Enther Node-RED URL (eg: http://localhost:1880)');
-
-  if (url != undefined && url != ''){
-    fs.appendFileSync(ENV_FILE, '\nNODERED_URL='+url);
-    console.log(chalk.green('Node-RED URL Set\n'));
-  }
-  else {
-    console.log(chalk.red('Node-RED URL Undefined'));
-    process.exit();
-  }
-}
-
-async function setNodeRedApiKey(){
-  let apiKey = await promptForApi('Enter Node-RED API Key');
-
-  if (apiKey != undefined && apiKey != ''){
-    fs.appendFileSync(ENV_FILE, '\nNODERED_API_KEY='+apiKey);
-    console.log(chalk.green('Node-RED API Key Set\n'));
-  }
-  else {
-    console.log(chalk.red('Node-RED API Key Undefined'));
-    process.exit();
-  }
-}
-
-async function setPrometheusConfigLocation(){
-  let location = await promtForPrometheusConfigLocation();
-  
-  if (location != undefined && location != ''){
-    fs.appendFileSync(ENV_FILE, '\nPROMETHEUS_CONFIG='+location);
-    console.log(chalk.green('Prometheus Config Location Set\n'));
-  }
-  else {
-    console.log(chalk.red('Prometheus Config Location Undefined'));
-    process.exit();
-  }
-}
-
-async function setPrometheusUrl(){
-  let location = await promtForUrl('Enther Prometheus URL (eg: http://localhost:9090)');
-  
-  if (location != undefined && location != ''){
-    fs.appendFileSync(ENV_FILE, '\nPROMETHEUS_URL='+location);
-    console.log(chalk.green('Prometheus URL Set\n'));
-  }
-  else {
-    console.log(chalk.red('Prometheus URL Undefined'));
+    console.log(chalk.red(name + ' Undefined'));
     process.exit();
   }
 }
@@ -554,8 +514,10 @@ async function promtManageVariables(){
     choices: [
       { title: 'Grafana URL', description: 'Manage the Grafana URL', value: 1 },
       { title: 'Grafana API Key', description: 'Manage the Grafana API key', value: 2},
-      { title: 'Prometheus Config', description: 'Manage the Prometheus config file location', value: 3},
-      { title: 'Prometheus URL', description: 'Manage the Prometheus URL', value: 4},
+      { title: 'Node-RED URL', description: 'Manage the Node-RED URL', value: 3},
+      { title: 'Node-RED API Key', description: 'Manage the Node-RED API Key', value: 4},
+      { title: 'Prometheus URL', description: 'Manage the Prometheus URL', value: 5},
+      { title: 'Prometheus Config', description: 'Manage the Prometheus config file location', value: 6},
       { title: 'Main Menu', description: 'Go back to the main menu', value: 99},
     ],
     initial: 0,
@@ -592,17 +554,6 @@ async function promptForUid(message){
   return response.value;
 }
 
-async function promptForApi(message){
-  const response = await prompts({
-    type: 'text',
-    name: 'value',
-    message: message,
-    validate: value => value.length < 50 ? "API key too small" : true
-  });
-
-  return response.value;
-}
-
 async function promtForTemplate(noOfTemplates){
   const response = await prompts({
     type: 'number',
@@ -616,22 +567,12 @@ async function promtForTemplate(noOfTemplates){
   return response.value;
 }
 
-async function promtForPrometheusConfigLocation(){
-  const response = await prompts({
-    type: 'text',
-    name: 'value',
-    message: 'Enther Prometheus config file location (eg: /etc/prometheus/prometheus.yml)',
-  });
-
-  return response.value;
-}
-
-async function promtForUrl(message){
+async function promtForInput(message){
   const response = await prompts({
     type: 'text',
     name: 'value',
     message: message,
-    validate: value => value.length < 10 ? "URL is too small" : true
+    validate: value => value.length < 10 ? "Input too small" : true
   });
 
   return response.value;
@@ -662,18 +603,8 @@ async function promtForIntInput(match){
 }
 
 // ----- FUNCTIONS -----
-function addNewTemplate(){
-  openDir(TEMPLATES_DIR);
-
-  setTimeout(menu, MENU_SLEEP_TIME);
-}
-
 function openDir(dir){
-  var dirPath = __dirname;
-  let splits = dirPath.split('bin');
-  var dirPath = splits[0] + dir;
-
-  openExplorer(dirPath, err => {
+  openExplorer(dir, err => {
     if(err) {
       console.log(err);
     }
@@ -742,79 +673,17 @@ function displayTemplates(){
   return i;
 }
 
-async function grafanaApiKey(){
-  let apiKey = process.env.GRAFANA_API_KEY;
-
-  if (apiKey === undefined || apiKey === ''){
-    console.log("[-] Error: No grafana key API set");
-    setGrafanaApiKey();
+async function manageEnvVar(envVar, message, name, envName){
+  if (envVar === undefined || envVar === ''){
+    console.log("[-] Error: Not set");
+    setEnvVar(message, name, envName);
   } 
   else {
-    console.log("Current Grafana API Key: " + chalk.green(apiKey));
+    console.log("Currently set as: " + chalk.green(envVar));
     NEWLINE();
-    let response = await promptYesOrNo('Change Grafana API Key?');
+    let response = await promptYesOrNo('Update?');
     if (response === true) {
-      setGrafanaApiKey();
-    }
-    else {
-      menuManageVariables();
-    }
-  }
-}
-
-async function grafanaUrl(){
-  let grafanaUrl = process.env.GRAFANA_URL;
-
-  if (grafanaUrl === undefined || grafanaUrl === ''){
-    console.log("[-] Error: No grafana URL set");
-    setGrafanaUrl();
-  } 
-  else {
-    console.log("Current Grafana URL: " + chalk.green(grafanaUrl));
-    NEWLINE();
-    let response = await promptYesOrNo('Change URL?');
-    if (response === true) {
-      setGrafanaUrl();
-    }
-    else {
-      menuManageVariables();
-    }
-  }
-}
-
-async function prometheusConfig(){
-  let prometheusConfig = process.env.PROMETHEUS_CONFIG;
-
-  if (prometheusConfig === undefined || prometheusConfig === ''){
-    console.log("[-] Error: No prometheus config location set");
-    setPrometheusConfigLocation();
-  } 
-  else {
-    console.log("Current Prometheus Config Location: " + chalk.green(prometheusConfig));
-    NEWLINE();
-    let response = await promptYesOrNo('Change Location?');
-    if (response === true) {
-      setPrometheusConfigLocation();
-    }
-    else {
-      menuManageVariables();
-    }
-  }
-}
-
-async function prometheusUrl(){
-  let prometheusUrl = process.env.PROMETHEUS_URL;
-
-  if (prometheusUrl === undefined || prometheusUrl === ''){
-    console.log("[-] Error: No prometheus URL set");
-    setPrometheusUrl();
-  } 
-  else {
-    console.log("Current Prometheus URL: " + chalk.green(prometheusUrl));
-    NEWLINE();
-    let response = await promptYesOrNo('Change URL?');
-    if (response === true) {
-      setPrometheusUrl();
+      setEnvVar(message, name, envName);
     }
     else {
       menuManageVariables();
@@ -852,27 +721,12 @@ async function replaceIntVariables(jsonString){
   return jsonString;
 }
 
-async function replaceIdVariables(jsonString){
-  const regex = /"{id{\w+}}"/g;
-  let replace = jsonString
-  let m;
-
-  while ((m = regex.exec(replace)) !== null) {
-    for (let i=0; i < m.length; i++) {
-      match = m[i];
-      let input = await promtForIntInput(match.slice(4, -3));
-      jsonString = jsonString.replace(match, input);
-    }
-  }
-  return jsonString;
-}
-
  // uid: pmr8WlZRk 
 
  // init:
  // http://tatooine.local:3000
  // eyJrIjoiTTJWd2dwZkpqYkxhbncyeTU1cmxEU1hOc2tONnBYSTkiLCJuIjoiR3JhZlBBRCIsImlkIjoxfQ==
- // /etc/prometheus/prometheus.yml
- // http://tatooine.local:9090
  // http://tatooine.local:1880
  // somerandomapikeybecausewedonthaveoneyetasnoderedisntsettoneedone
+ // http://tatooine.local:9090
+ // /etc/prometheus/prometheus.yml
