@@ -15,6 +15,7 @@ const figlet = require('figlet'); // Large text styling
 const openExplorer = require('open-file-explorer'); // File explorer
 const editJsonFile = require('edit-json-file'); // JSON editor
 const yaml = require('js-yaml'); // YAML editor
+const uuidv4 = require('uuid/v4'); // Random IDs
 
 // ----- CONSTANTS -----
 const options = yargs.argv; // Get command line options eg: debug
@@ -88,7 +89,7 @@ async function menu(){
         { title: 'Manage templates', description: 'Manage Grafana JSON templates', value: 1 },
         { title: 'Add panel by UID', description: 'Add a panel from templates to a dashboard by UID', value: 2},
         { title: 'Get dashboard JSON by UID', description: 'Retrieve the JSON of a dashboard by UID', value: 3},
-        { title: 'Add target to Node-RED', description: 'Add a target to Node-RED monitoring', value: 4}, //TODO
+        { title: 'Add target to Node-RED', description: 'Add a target to Node-RED monitoring', value: 4},
         { title: 'Add target to Prometheus', description: 'Add a scraping target to prometheus', value: 5},
         { title: 'Manage Initialised Variables', description: 'Manage environment variables setup at initialisation', value: 6},
         { title: 'Exit', description: 'Exit GrafPAD', value: 99},
@@ -174,9 +175,9 @@ async function menuDashboardJsonByUid(){
   });
 }
 
-async function menuAddGatewayToNodeRed(){
+async function menuAddGatewayToNodeRed(){ //TODO: Make the template link up IDs and then regex them
   let uid = await promptForUid('Enter flow UID');
-  const url = process.env.NODERED_URL + '/flow/' + uid; //96cab97e.c658f8
+  const url = process.env.NODERED_URL + '/flow/' + uid;
 
   let config = {
     headers: {
@@ -186,7 +187,7 @@ async function menuAddGatewayToNodeRed(){
   }
 
   // Add API key header if available
-  process.env.NODERED_API_KEY ? headers.Authorization = 'Bearer ' + process.env.NODE_API_KEY : null;
+  process.env.NODERED_API_KEY != '' ? config.headers.Authorization = 'Bearer ' + process.env.NODE_API_KEY : null;
 
   axios.get(
     url, config
@@ -206,15 +207,15 @@ async function menuAddGatewayToNodeRed(){
       // Pull out the nodes, flowid and final node x and y position
       var jsonNodes = jsonFile.get('nodes');
       const flowid = jsonFile.get('id');
-      const lastX = jsonNodes[jsonNodes.length - 1].x
-      const lastY = jsonNodes[jsonNodes.length - 1].y
+      const lastX = jsonNodes[jsonNodes.length - 1].x;
+      const lastY = jsonNodes[jsonNodes.length - 1].y;
 
       // Load the template and parse as object TODO: This code is repeated
       let noOfTemplates = displayTemplates();
       let templateChoice = await promtForTemplate(noOfTemplates);
       let templateName = getTemplateName(templateChoice);
       const templatePath = path.join(TEMPLATES_DIR, `${templateName}.json`);
-      let rawTemplate = fs.readFileSync(templatePath) //TODO: Check the template and warn if it doesnt look like node red json
+      let rawTemplate = fs.readFileSync(templatePath); //TODO: Check the template and warn if it doesnt look like node red json
       var template = JSON.parse(rawTemplate);
 
       // Input custom values into template as strings
@@ -223,13 +224,29 @@ async function menuAddGatewayToNodeRed(){
       templateString = await replaceIntVariables(templateString);
 
       // Parse and add the template to the json flow nodes object
-      template = JSON.parse(templateString)
+      template = JSON.parse(templateString);
+      var idDict = {};
       let length = template.length;
       for(let i=0; i < length; i++) {
-        template[i].id = flowid;
-        template[i].x = lastX + 10 + (i * 10);
-        template[i].y = lastY + 10 + (i * 10);
-        jsonNodes.push(template[i])
+        let newId = uuidv4();
+        idDict[template[i].id] = newId;
+        template[i].id = newId;
+        template[i].z = flowid;
+        template[i].x = lastX + 100 + (i * 100);
+        template[i].y = lastY + 100 + (i * 100);
+        jsonNodes.push(template[i]);
+      }
+
+      // Set the wire id's to the new given ids
+      var getNodes = jsonFile.toObject();
+      for(let j=0; j<jsonNodes.length; j++) {
+        let wires = jsonNodes[j].wires[0];
+
+        if (wires != undefined){
+          for(let k=0; k<wires.length; k++){
+            getNodes.nodes[j].wires[0][k] = idDict[wires[k]];
+          }
+        }
       }
 
       // Set the updated template into the json file
@@ -484,7 +501,7 @@ async function setNoderedFlowByUid(json, uid){
   }
 
   // Add API key header if available
-  process.env.NODERED_API ? headers.Authorization = 'Bearer ' + process.env.NODE_API_KEY : null;
+  process.env.NODERED_API_KEY != '' ? config.headers.Authorization = 'Bearer ' + process.env.NODE_API_KEY : null;
 
   axios.put(
     url, json, config
@@ -822,6 +839,21 @@ async function replaceStringVariables(jsonString){
 
 async function replaceIntVariables(jsonString){
   const regex = /"{i{\w+}}"/g;
+  let replace = jsonString
+  let m;
+
+  while ((m = regex.exec(replace)) !== null) {
+    for (let i=0; i < m.length; i++) {
+      match = m[i];
+      let input = await promtForIntInput(match.slice(4, -3));
+      jsonString = jsonString.replace(match, input);
+    }
+  }
+  return jsonString;
+}
+
+async function replaceIdVariables(jsonString){
+  const regex = /"{id{\w+}}"/g;
   let replace = jsonString
   let m;
 
