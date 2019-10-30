@@ -52,6 +52,8 @@ async function initialise(){
   await setGrafanaApiKey();
   await setPrometheusConfigLocation();
   await setPrometheusUrl();
+  await setNodeRedUrl();
+  await setNodeRedApiKey();
   fs.appendFileSync(ENV_FILE, '\nINIT=true');
 }
 
@@ -172,9 +174,9 @@ async function menuDashboardJsonByUid(){
   });
 }
 
-async function menuAddGatewayToNodeRed(){ //TODO: This should be setup to handle api keys if needed
+async function menuAddGatewayToNodeRed(){
   let uid = await promptForUid('Enter flow UID');
-  const url = 'http://tatooine.local:1880' + '/flow/' + uid; //96cab97e.c658f8 TODO: Add node red url to initialise
+  const url = process.env.NODERED_URL + '/flow/' + uid; //96cab97e.c658f8
 
   let config = {
     headers: {
@@ -184,7 +186,7 @@ async function menuAddGatewayToNodeRed(){ //TODO: This should be setup to handle
   }
 
   // Add API key header if available
-  process.env.NODERED_API ? headers.Authorization = 'Bearer ' + process.env.NODE_API_KEY : null;
+  process.env.NODERED_API_KEY ? headers.Authorization = 'Bearer ' + process.env.NODE_API_KEY : null;
 
   axios.get(
     url, config
@@ -194,9 +196,48 @@ async function menuAddGatewayToNodeRed(){ //TODO: This should be setup to handle
       console.log(`${res.status}: ${res.statusText}`);
       console.log(chalk.green('Successfully got Node-RED active flows configuration'));
 
-      // Save the downloaded config file 
+      // Save the downloaded flow file 
       const dirPath = path.join(TEMP_DIR, 'nodered_flows.json');
       fs.writeFileSync(dirPath, JSON.stringify(res.data));
+
+      // Load the dashboard json file to edit
+      let jsonFile = editJsonFile(dirPath);
+
+      // Pull out the nodes, flowid and final node x and y position
+      var jsonNodes = jsonFile.get('nodes');
+      const flowid = jsonFile.get('id');
+      const lastX = jsonNodes[jsonNodes.length - 1].x
+      const lastY = jsonNodes[jsonNodes.length - 1].y
+
+      // Load the template and parse as object TODO: This code is repeated
+      let noOfTemplates = displayTemplates();
+      let templateChoice = await promtForTemplate(noOfTemplates);
+      let templateName = getTemplateName(templateChoice);
+      const templatePath = path.join(TEMPLATES_DIR, `${templateName}.json`);
+      let rawTemplate = fs.readFileSync(templatePath) //TODO: Check the template and warn if it doesnt look like node red json
+      var template = JSON.parse(rawTemplate);
+
+      // Input custom values into template as strings
+      var templateString = JSON.stringify(template);
+      templateString = await replaceStringVariables(templateString);
+      templateString = await replaceIntVariables(templateString);
+
+      // Parse and add the template to the json flow nodes object
+      template = JSON.parse(templateString)
+      let length = template.length;
+      for(let i=0; i < length; i++) {
+        template[i].id = flowid;
+        template[i].x = lastX + 10 + (i * 10);
+        template[i].y = lastY + 10 + (i * 10);
+        jsonNodes.push(template[i])
+      }
+
+      // Set the updated template into the json file
+      jsonFile.set('nodes', jsonNodes);
+      jsonFile.save();
+
+      // Post to nodered
+      setNoderedFlowByUid(jsonFile.data, uid);
     }
     else {
       NEWLINE();
@@ -308,7 +349,7 @@ function setFolderStructure(){
 }
 
 async function setGrafanaUrl(){
-  let url = await promtForGrafanaUrl();
+  let url = await promtForUrl('Enther Grafana URL (eg: http://localhost:3000)');
 
   if (url != undefined && url != ''){
     fs.appendFileSync(ENV_FILE, '\nGRAFANA_URL='+url);
@@ -321,7 +362,7 @@ async function setGrafanaUrl(){
 }
 
 async function setGrafanaApiKey(){
-  let apiKey = await promptForGrafanaApi();
+  let apiKey = await promptForApi('Enter Grafana API Key');
 
   if (apiKey != undefined && apiKey != ''){
     fs.appendFileSync(ENV_FILE, '\nGRAFANA_API_KEY='+apiKey);
@@ -329,6 +370,31 @@ async function setGrafanaApiKey(){
   }
   else {
     console.log(chalk.red('Grafana API Key Undefined'));
+    process.exit();
+  }
+}
+async function setNodeRedUrl(){
+  let url = await promtForUrl('Enther Node-RED URL (eg: http://localhost:1880)');
+
+  if (url != undefined && url != ''){
+    fs.appendFileSync(ENV_FILE, '\nNODERED_URL='+url);
+    console.log(chalk.green('Node-RED URL Set\n'));
+  }
+  else {
+    console.log(chalk.red('Node-RED URL Undefined'));
+    process.exit();
+  }
+}
+
+async function setNodeRedApiKey(){
+  let apiKey = await promptForApi('Enter Node-RED API Key');
+
+  if (apiKey != undefined && apiKey != ''){
+    fs.appendFileSync(ENV_FILE, '\nNODERED_API_KEY='+apiKey);
+    console.log(chalk.green('Node-RED API Key Set\n'));
+  }
+  else {
+    console.log(chalk.red('Node-RED API Key Undefined'));
     process.exit();
   }
 }
@@ -347,7 +413,7 @@ async function setPrometheusConfigLocation(){
 }
 
 async function setPrometheusUrl(){
-  let location = await promtForPrometheusUrl();
+  let location = await promtForUrl('Enther Prometheus URL (eg: http://localhost:9090)');
   
   if (location != undefined && location != ''){
     fs.appendFileSync(ENV_FILE, '\nPROMETHEUS_URL='+location);
@@ -407,6 +473,37 @@ async function setDashboardJsonByUid(json){
   setTimeout(menu, MENU_SLEEP_TIME);
 }
 
+async function setNoderedFlowByUid(json, uid){
+  const url = process.env.NODERED_URL + '/flow/' + uid;
+
+  let config = {
+    headers: {
+      'Accept': "application/json", 
+      'Content-Type': 'application/json',
+    }
+  }
+
+  // Add API key header if available
+  process.env.NODERED_API ? headers.Authorization = 'Bearer ' + process.env.NODE_API_KEY : null;
+
+  axios.put(
+    url, json, config
+  ).then(res => {
+    if(res.status === 200){
+      NEWLINE();
+      console.log(`${res.status}: ${res.statusText}`);
+      console.log(chalk.green('Successfully updated Node-RED'));
+    }
+    else {
+      NEWLINE();
+      console.log(`${res.status}: ${res.statusText}`);
+      console.log(chalk.red('Error posting to Node-RED'));
+    }
+  });
+
+  setTimeout(menu, MENU_SLEEP_TIME);
+}
+
 function getTemplateName(templateChoice){ // TODO: THIS WILL BREAK IF THERE ARE NON JSON FILES
   let file = fs.readdirSync(TEMPLATES_DIR)[templateChoice];
   let split = file.split('.');
@@ -420,7 +517,7 @@ function setDashboardJsonToDisk(json) {
   openDir(SAVED_DIR);
 }
 
-// ----- PROMPTS -----
+// ----- PROMPTS ----- TODO: Do all text promts need to be different
 async function promptYesOrNo(message){
   const response = await prompts({
     type: 'confirm',
@@ -478,11 +575,11 @@ async function promptForUid(message){
   return response.value;
 }
 
-async function promptForGrafanaApi(){
+async function promptForApi(message){
   const response = await prompts({
     type: 'text',
     name: 'value',
-    message: 'Enter Grafana API Key',
+    message: message,
     validate: value => value.length < 50 ? "API key too small" : true
   });
 
@@ -512,21 +609,12 @@ async function promtForPrometheusConfigLocation(){
   return response.value;
 }
 
-async function promtForPrometheusUrl(){//TODO: Do all text promts need to be different
+async function promtForUrl(message){
   const response = await prompts({
     type: 'text',
     name: 'value',
-    message: 'Enther Prometheus URL (eg: http://localhost:9090)',
-  });
-
-  return response.value;
-}
-
-async function promtForGrafanaUrl(){
-  const response = await prompts({
-    type: 'text',
-    name: 'value',
-    message: 'Enther Grafana URL (eg: http://localhost:3000)',
+    message: message,
+    validate: value => value.length < 10 ? "URL is too small" : true
   });
 
   return response.value;
@@ -754,3 +842,5 @@ async function replaceIntVariables(jsonString){
  // eyJrIjoiTTJWd2dwZkpqYkxhbncyeTU1cmxEU1hOc2tONnBYSTkiLCJuIjoiR3JhZlBBRCIsImlkIjoxfQ==
  // /etc/prometheus/prometheus.yml
  // http://tatooine.local:9090
+ // http://tatooine.local:1880
+ // somerandomapikeybecausewedonthaveoneyetasnoderedisntsettoneedone

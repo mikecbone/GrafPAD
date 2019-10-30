@@ -46,7 +46,7 @@
       "id": "4f7c53c5.e080ac",
       "type": "inject",
       "z": "4ccf9c67.de5d94",
-      "name": "Rosamund",
+      "name": "{{DEVICE_NAME}}",
       "topic": "",
       "payload": "{{EUI}}",
       "payloadType": "str",
