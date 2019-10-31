@@ -236,7 +236,7 @@ async function menuAddTargetToNodeRed() { //TODO: Refactor this method
       let templateChoice = await promtForTemplate(noOfTemplates);
       let templateName = getTemplateName(templateChoice);
       const templatePath = path.join(TEMPLATES_DIR, `${templateName}.json`);
-      let rawTemplate = fs.readFileSync(templatePath); //TODO: Check the template and warn if it doesnt look like node red json
+      let rawTemplate = tryReadFileSync(templatePath); //TODO: Check the template and warn if it doesnt look like node red json
       var template = JSON.parse(rawTemplate);
 
       // Input custom values into template as strings
@@ -282,10 +282,21 @@ async function menuAddTargetToNodeRed() { //TODO: Refactor this method
       console.log(`${res.status}: ${res.statusText}`);
       console.log(chalk.red('[-] Error contacting Node-RED'));
     }
+  }).catch(err => {
+    console.log(chalk.red('[-] Error contacting Node-RED. URL and API key correct?'));
+    if (options.v) {
+      console.log(err);
+    }
+    return;
   });
 }
 
 function menuAddTargetToPrometheus() { //TODO: Refactor this method
+  if(!fs.existsSync(process.env.PROMETHEUS_CONFIG)) {
+    console.log(chalk.red('[-] Prometheus config location does not appear to exist'));
+    return;
+  }
+
   const url = process.env.PROMETHEUS_URL + "/api/v1/status/config";
 
   axios.get(url).then(async res => {
@@ -297,7 +308,7 @@ function menuAddTargetToPrometheus() { //TODO: Refactor this method
       // Save the downloaded config file and open it in yaml module
       const dirPath = path.join(TEMP_DIR, 'prometheus_config.yml');
       tryWriteFileSync(dirPath, res.data.data.yaml);
-      let doc = yaml.safeLoad(fs.readFileSync(dirPath));
+      let doc = yaml.safeLoad(tryReadFileSync(dirPath));
       console.log(doc);
 
       // Get the target identifier to add
@@ -313,12 +324,18 @@ function menuAddTargetToPrometheus() { //TODO: Refactor this method
         }
       }
 
-      // Save the new yaml file //TODO back up the old one
-      tryWriteFileSync(dirPath, yaml.safeDump(doc));
+      // Save the new yaml file and back up the old one
+      let oldDoc = yaml.safeLoad(tryReadFileSync(process.env.PROMETHEUS_CONFIG));
+      let saveLocation = process.env.PROMETHEUS_CONFIG.split('prometheus.yml')[0];
+      tryWriteFileSync(saveLocation, yaml.safeDump(oldDoc));
+      tryWriteFileSync(process.env.PROMETHEUS_CONFIG, yaml.safeDump(doc));
 
       exec('sudo service prometheus restart && sudo service prometheus status', (err, stdout, stderr) => { //TODO: Check this works
         if (err) {
           console.log(chalk.red('[-] Error: Cannot restart Prometheus'));
+          if (options.v) {
+            console.log(err);
+          }
           return;
         }
 
@@ -333,6 +350,12 @@ function menuAddTargetToPrometheus() { //TODO: Refactor this method
       console.log(`${res.status}: ${res.statusText}`);
       console.log(chalk.red('[-] Error contacting prometheus'));
     }
+  }).catch(err => {
+    console.log(chalk.red('[-] Error connecting to Prometheus. URL Correct?'));
+    if (options.v) {
+      console.log(err);
+    }
+    return;
   });
 }
 
@@ -423,6 +446,12 @@ async function getDashboardJsonByUid(uid, callback) {
     }
   ).then(res => {
     callback(res.data);
+  }).catch(err => {
+    console.log(chalk.red('[-] Error contacting Grafana. URL and API key correct?'));
+    if (options.v) {
+      console.log(err);
+    }
+    return;
   });
 }
 
@@ -457,6 +486,12 @@ async function setDashboardJsonByUid(json) {
       console.log(`${res.status}: ${res.statusText}`);
       console.log(chalk.red('[-] Error posting to Grafana'));
     }
+  }).catch(err => {
+    console.log(chalk.red('[-] Error contacting Grafana. URL and API key correct?'));
+    if (options.v) {
+      console.log(err);
+    }
+    return;
   });
 
   setTimeout(menu, MENU_SLEEP_TIME);
@@ -472,7 +507,7 @@ async function setNoderedFlowByUid(json, uid) {
     }
   }
 
-  // Add API key header if available
+  // Add API key header if available TODO: Check api key bearer works
   process.env.NODERED_API_KEY != '' ? config.headers.Authorization = 'Bearer ' + process.env.NODE_API_KEY : null;
 
   axios.put(
@@ -488,12 +523,18 @@ async function setNoderedFlowByUid(json, uid) {
       console.log(`${res.status}: ${res.statusText}`);
       console.log(chalk.red('[-] Error posting to Node-RED'));
     }
+  }).catch(err => {
+    console.log(chalk.red('[-] Error contacting Node-RED. URL and API key correct?'));
+    if (options.v) {
+      console.log(err);
+    }
+    return;
   });
 
   setTimeout(menu, MENU_SLEEP_TIME);
 }
 
-function getTemplateName(templateChoice) { // TODO: THIS WILL BREAK IF THERE ARE NON JSON FILES
+function getTemplateName(templateChoice) {
   let file = fs.readdirSync(TEMPLATES_DIR)[templateChoice];
   let split = file.split('.');
   return split[0];
@@ -506,7 +547,7 @@ function setDashboardJsonToDisk(json) {
   openDir(SAVED_DIR);
 }
 
-// ----- PROMPTS ----- TODO: Do all text promts need to be different
+// ----- PROMPTS -----
 async function promptYesOrNo(message) {
   const response = await prompts({
     type: 'confirm',
@@ -617,7 +658,10 @@ async function promtForIntInput(match) {
 function openDir(dir){
   openExplorer(dir, err => {
     if(err) {
-      console.log(err);
+      console.log(chalk.red('[-] Error opening directory'));
+      if (options.v) {
+        console.log(err);
+      }
     }
   });
 }
@@ -627,7 +671,22 @@ function tryWriteFileSync(path, file){
     fs.writeFileSync(path, file);
   }
   catch(err) {
-    console.log(err);
+    console.log(chalk.red('[-] Error writing to file'));
+    if (options.v) {
+      console.log(err);
+    }
+  }
+}
+
+function tryReadFileSync(path){
+  try {
+    return fs.readFileSync(path);
+  }
+  catch(err) {
+    console.log(chalk.red('[-] Error reading file'));
+    if (options.v) {
+      console.log(err);
+    }
   }
 }
 
@@ -650,7 +709,7 @@ async function handleDashboardJson(json) {
   let templateChoice = await promtForTemplate(noOfTemplates);
   let templateName = getTemplateName(templateChoice);
   const templatePath = path.join(TEMPLATES_DIR, `${templateName}.json`);
-  let rawTemplate = fs.readFileSync(templatePath); //TODO: Check the template and warn if it doesnt look like grafana json
+  let rawTemplate = tryReadFileSync(templatePath); //TODO: Check the template and warn if it doesnt look like grafana json
   var template = JSON.parse(rawTemplate);
 
   //Give random ID and itterate on the position
@@ -684,9 +743,8 @@ function displayTemplates() {
 
     if(split[1] == 'json'){
       console.log(' ' + i + ': ' + split[0]);
+      i++;
     }
-
-    i++;
   })
 
   NEWLINE();

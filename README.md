@@ -45,6 +45,8 @@ GrafPAD can be used by simply entering into terminal
 grafpad
 ```
 
+For verbose output, run with `-v` command.
+
 ### Usage:
 
 Grafana dashboard UIDs can be found via the URL `http://localhost:3000/d/d12SE5iRt/` or at the end of a dashboards JSON
