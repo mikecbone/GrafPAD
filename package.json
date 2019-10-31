@@ -1,6 +1,6 @@
 {
   "name": "grafpad",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Grafana Panel and Dashboard Editing Tool",
   "main": "bin/index.js",
   "scripts": {
