@@ -24,7 +24,7 @@ const dirPath = __dirname.split('bin')[0];
 const MENU_SLEEP_TIME = 1500;
 const NEWLINE = () => console.log(os.EOL);
 
-const STORE_DIR = path.join(dirPath, 'store')
+const STORE_DIR = path.join(dirPath, 'store');
 const ENV_FILE = path.join(dirPath, '.env');
 const GIT_FILE = path.join(dirPath, '.gitignore');
 const TEMPLATES_DIR = path.join(STORE_DIR, 'templates');
@@ -33,24 +33,25 @@ const TEMP_DIR = os.tmpdir();
 
 const GRAFANA_URL_MESSAGE = 'Enter Grafana URL (eg: http://localhost:3000)';
 const GRAFANA_URL_ENVNAME = 'GRAFANA_URL';
-const GRAFANA_URL_NAME = 'Grafana URL'
+const GRAFANA_URL_NAME = 'Grafana URL';
 const GRAFANA_API_MESSAGE = 'Enter Grafana API Key';
 const GRAFANA_API_ENVNAME = 'GRAFANA_API_KEY';
 const GRAFANA_API_NAME = 'Grafana API Key';
 const NODERED_URL_MESSAGE = 'Enter Node-RED URL (eg: http://localhost:1880)';
 const NODERED_URL_ENVNAME = 'NODERED_URL';
-const NODERED_URL_NAME = 'Node-RED URL'
+const NODERED_URL_NAME = 'Node-RED URL';
 const NODERED_API_MESSAGE = 'Enter Node-RED API Key';
 const NODERED_API_ENVNAME = 'NODERED_API_KEY';
 const NODERED_API_NAME = 'Node-RED API Key';
 const PROMETHEUS_URL_MESSAGE = 'Enter Prometheus URL (eg: http://localhost:9090)';
 const PROMETHEUS_URL_ENVNAME = 'PROMETHEUS_URL';
-const PROMETHEUS_URL_NAME = 'Prometheus URL'
+const PROMETHEUS_URL_NAME = 'Prometheus URL';
 const PROMETHEUS_CONFIG_MESSAGE = 'Enter Prometheus config file location (eg: /etc/prometheus/prometheus.yml)';
 const PROMETHEUS_CONFIG_ENVNAME = 'PROMETHEUS_CONFIG';
 const PROMETHEUS_CONFIG_NAME = 'Prometheus Config Location';
 
 require('dotenv').config({path: ENV_FILE});
+console.log(TEMP_DIR);
 
 // ----- OPENING CODE -----
 if (options.init){
@@ -67,7 +68,7 @@ else {
 /**
  * Initialise GrafPAD with required folder structure and files
  */
-async function initialise(){
+async function initialise() {
   setFolderStructure();
   await setEnvVar(GRAFANA_URL_MESSAGE, GRAFANA_URL_NAME, GRAFANA_URL_ENVNAME);
   await setEnvVar(GRAFANA_API_MESSAGE, GRAFANA_API_NAME, GRAFANA_API_ENVNAME);
@@ -98,7 +99,7 @@ function title() {
 /**
  * Show the main menu
  */
-async function menu(){
+async function menu() {
   NEWLINE();
   (async () => {
     const response = await prompts({
@@ -133,10 +134,10 @@ async function menu(){
         menuDashboardJsonByUid();
         break;
       case 4:
-        menuAddGatewayToNodeRed();
+        menuAddTargetToNodeRed();
         break;
       case 5:
-        menuAddGatewayToPrometheus();
+        menuAddTargetToPrometheus();
         break;
       case 6:
         menuManageVariables();
@@ -150,7 +151,7 @@ async function menu(){
 }
 
 // ----- MENU FUNCTIONS -----
-async function menuTemplates(){
+async function menuTemplates() {
   let response = await promptShowOrAddTemplates();
 
   if(response === 1) {
@@ -163,7 +164,7 @@ async function menuTemplates(){
   }
 }
 
-async function menuPanelByUid(){
+async function menuPanelByUid() {
   let uid = await promptForUid('Enter dashboard UID');
 
   if (uid === undefined || uid === '') {
@@ -176,7 +177,7 @@ async function menuPanelByUid(){
   })
 }
 
-async function menuDashboardJsonByUid(){
+async function menuDashboardJsonByUid() {
   let uid = await promptForUid('Enter dashboard UID');
 
   if (uid === undefined || uid === '') {
@@ -196,7 +197,7 @@ async function menuDashboardJsonByUid(){
   });
 }
 
-async function menuAddGatewayToNodeRed(){ //TODO: Refactor this method
+async function menuAddTargetToNodeRed() { //TODO: Refactor this method
   let uid = await promptForUid('Enter flow UID');
   const url = process.env.NODERED_URL + '/flow/' + uid;
 
@@ -205,7 +206,7 @@ async function menuAddGatewayToNodeRed(){ //TODO: Refactor this method
       'Accept': "application/json", 
       'Content-Type': 'application/json',
     }
-  }
+  };
 
   // Add API key header if available
   process.env.NODERED_API_KEY != '' ? config.headers.Authorization = 'Bearer ' + process.env.NODE_API_KEY : null;
@@ -220,7 +221,7 @@ async function menuAddGatewayToNodeRed(){ //TODO: Refactor this method
 
       // Save the downloaded flow file 
       const dirPath = path.join(TEMP_DIR, 'nodered_flows.json');
-      fs.writeFileSync(dirPath, JSON.stringify(res.data));
+      tryWriteFileSync(dirPath, JSON.stringify(res.data));
 
       // Load the dashboard json file to edit
       let jsonFile = editJsonFile(dirPath);
@@ -280,12 +281,12 @@ async function menuAddGatewayToNodeRed(){ //TODO: Refactor this method
     else {
       NEWLINE();
       console.log(`${res.status}: ${res.statusText}`);
-      console.log(chalk.red('Error contacting Node-RED'));
+      console.log(chalk.red('[-] Error contacting Node-RED'));
     }
   });
 }
 
-function menuAddGatewayToPrometheus(){ //TODO: Refactor this method
+function menuAddTargetToPrometheus() { //TODO: Refactor this method
   const url = process.env.PROMETHEUS_URL + "/api/v1/status/config";
 
   axios.get(url).then(async res => {
@@ -296,26 +297,28 @@ function menuAddGatewayToPrometheus(){ //TODO: Refactor this method
 
       // Save the downloaded config file and open it in yaml module
       const dirPath = path.join(TEMP_DIR, 'prometheus_config.yml');
-      fs.writeFileSync(dirPath, res.data.data.yaml);
+      tryWriteFileSync(dirPath, res.data.data.yaml);
       let doc = yaml.safeLoad(fs.readFileSync(dirPath));
       console.log(doc);
 
-      // Loop through configs to add gateway to
+      // Get the target identifier to add
+      let target = await promtForInput('Enter target address to add to Prometheus');
+
+      // Loop through configs to add target to
       for (let i=0; i<doc.scrape_configs.length; i++){
         const name = doc.scrape_configs[i].job_name;
-        let response = await promptYesOrNo(`Add gateway target to job: ${name}`);
+        let response = await promptYesOrNo(`Add target to job: ${name}`);
         if (response === true){
-          doc.scrape_configs[i].static_configs[0].targets.push('shrike.ttnliv.uk:8105');
-          console.log(chalk.green('Added shrike.ttnliv.uk:8105 to ' + name));
+          doc.scrape_configs[i].static_configs[0].targets.push(target);
+          console.log(chalk.green(`Added ${target} to ${name}`));
         }
       }
 
-      // Save the new yaml file
-      fs.writeFileSync(dirPath, yaml.safeDump(doc)); //TODO back up the old one
+      // Save the new yaml file //TODO back up the old one
+      tryWriteFileSync(dirPath, yaml.safeDump(doc));
 
-      exec('sudo service prometheus restart && sudo service prometheus status', (err, stdout, stderr) => { //TODO restart prometheus
+      exec('sudo service prometheus restart && sudo service prometheus status', (err, stdout, stderr) => { //TODO: Check this works
         if (err) {
-          //console.log(err);
           console.log(chalk.red('[-] Error: Cannot restart Prometheus'));
           return;
         }
@@ -329,12 +332,12 @@ function menuAddGatewayToPrometheus(){ //TODO: Refactor this method
     else {
       NEWLINE();
       console.log(`${res.status}: ${res.statusText}`);
-      console.log(chalk.red('Error contacting prometheus'));
+      console.log(chalk.red('[-] Error contacting prometheus'));
     }
   });
 }
 
-async function menuManageVariables(){
+async function menuManageVariables() {
   let response = await promtManageVariables();
 
   switch (response)
@@ -349,7 +352,7 @@ async function menuManageVariables(){
         manageEnvVar(process.env.NODERED_URL, NODERED_URL_MESSAGE, NODERED_URL_NAME, NODERED_URL_ENVNAME);
         break;
       case 4:
-        manageEnvVar(process.env.NODERED_API_KEY, NODERED_API_MESSAGE, NODERED_API_NAME, NODERED_API_ENVNAME); //TODO: Make this not required?
+        manageEnvVar(process.env.NODERED_API_KEY, NODERED_API_MESSAGE, NODERED_API_NAME, NODERED_API_ENVNAME);
         break;
       case 5:
         manageEnvVar(process.env.PROMETHEUS_URL, PROMETHEUS_URL_MESSAGE, PROMETHEUS_URL_NAME, PROMETHEUS_URL_ENVNAME);
@@ -367,12 +370,12 @@ async function menuManageVariables(){
     }
 }
 
-function exitApp(){
+function exitApp() {
   process.exit();
 }
 
 // ----- SET AND GETS -----
-function setFolderStructure(){
+function setFolderStructure() {
   if (!fs.existsSync(STORE_DIR)){
     fs.mkdirSync(STORE_DIR);
   }
@@ -383,13 +386,13 @@ function setFolderStructure(){
     fs.mkdirSync(SAVED_DIR);
   }
   if (!fs.existsSync(GIT_FILE)){
-    fs.writeFileSync(GIT_FILE, '.env\nnode_modules\nstore/temp\n.DS_Store\n');
+    tryWriteFileSync(GIT_FILE, '.env\nnode_modules\nstore/temp\n.DS_Store\n');
   }
-  fs.writeFileSync(ENV_FILE, '');
+  tryWriteFileSync(ENV_FILE, '');
   console.log(chalk.green('Folder Structure Set\n'));
 }
 
-async function setEnvVar(message, name, envName){
+async function setEnvVar(message, name, envName) {
   let env = await promtForInput(message);
 
   if (env != undefined && env != ''){
@@ -402,7 +405,7 @@ async function setEnvVar(message, name, envName){
   }
 }
 
-async function getDashboardJsonByUid(uid, callback){
+async function getDashboardJsonByUid(uid, callback) {
   const baseUrl = process.env.GRAFANA_URL + "/api/dashboards/uid/";
   const url = baseUrl + String(uid);
 
@@ -419,7 +422,7 @@ async function getDashboardJsonByUid(uid, callback){
   });
 }
 
-async function setDashboardJsonByUid(json){
+async function setDashboardJsonByUid(json) {
   const baseUrl = process.env.GRAFANA_URL + "/api/dashboards/db";
 
   axios.post(
@@ -443,14 +446,14 @@ async function setDashboardJsonByUid(json){
     else {
       NEWLINE();
       console.log(`${res.status}: ${res.statusText}`);
-      console.log(chalk.red('Error posting to Grafana'));
+      console.log(chalk.red('[-] Error posting to Grafana'));
     }
   });
 
   setTimeout(menu, MENU_SLEEP_TIME);
 }
 
-async function setNoderedFlowByUid(json, uid){
+async function setNoderedFlowByUid(json, uid) {
   const url = process.env.NODERED_URL + '/flow/' + uid;
 
   let config = {
@@ -474,14 +477,14 @@ async function setNoderedFlowByUid(json, uid){
     else {
       NEWLINE();
       console.log(`${res.status}: ${res.statusText}`);
-      console.log(chalk.red('Error posting to Node-RED'));
+      console.log(chalk.red('[-] Error posting to Node-RED'));
     }
   });
 
   setTimeout(menu, MENU_SLEEP_TIME);
 }
 
-function getTemplateName(templateChoice){ // TODO: THIS WILL BREAK IF THERE ARE NON JSON FILES
+function getTemplateName(templateChoice) { // TODO: THIS WILL BREAK IF THERE ARE NON JSON FILES
   let file = fs.readdirSync(TEMPLATES_DIR)[templateChoice];
   let split = file.split('.');
   return split[0];
@@ -489,13 +492,13 @@ function getTemplateName(templateChoice){ // TODO: THIS WILL BREAK IF THERE ARE 
 
 function setDashboardJsonToDisk(json) {
   const dirPath = path.join(SAVED_DIR, 'json.json');
-  fs.writeFileSync(dirPath, JSON.stringify(json)); //TODO: These should be in a try catch
+  tryWriteFileSync(dirPath, JSON.stringify(json));
 
   openDir(SAVED_DIR);
 }
 
 // ----- PROMPTS ----- TODO: Do all text promts need to be different
-async function promptYesOrNo(message){
+async function promptYesOrNo(message) {
   const response = await prompts({
     type: 'confirm',
     name: 'value',
@@ -506,19 +509,19 @@ async function promptYesOrNo(message){
   return response.value;
 }
 
-async function promtManageVariables(){
+async function promtManageVariables() {
   const response = await prompts({
     type: 'select',
     name: 'value',
     message: 'Environment Variables',
     choices: [
       { title: 'Grafana URL', description: 'Manage the Grafana URL', value: 1 },
-      { title: 'Grafana API Key', description: 'Manage the Grafana API key', value: 2},
+      { title: 'Grafana API Key', description: 'Manage the Grafana API Key', value: 2},
       { title: 'Node-RED URL', description: 'Manage the Node-RED URL', value: 3},
       { title: 'Node-RED API Key', description: 'Manage the Node-RED API Key', value: 4},
       { title: 'Prometheus URL', description: 'Manage the Prometheus URL', value: 5},
-      { title: 'Prometheus Config', description: 'Manage the Prometheus config file location', value: 6},
-      { title: 'Main Menu', description: 'Go back to the main menu', value: 99},
+      { title: 'Prometheus Config', description: 'Manage the Prometheus Config File Location', value: 6},
+      { title: 'Main Menu', description: 'Go Back to the Main Menu', value: 99},
     ],
     initial: 0,
     hint: '- Space to select'
@@ -527,7 +530,7 @@ async function promtManageVariables(){
   return response.value;
 }
 
-async function promptShowOrAddTemplates(){
+async function promptShowOrAddTemplates() {
   const response = await prompts({
     type: 'select',
     name: 'value',
@@ -543,7 +546,7 @@ async function promptShowOrAddTemplates(){
   return response.value;
 }
 
-async function promptForUid(message){
+async function promptForUid(message) {
   const response = await prompts({
     type: 'text',
     name: 'value',
@@ -554,7 +557,7 @@ async function promptForUid(message){
   return response.value;
 }
 
-async function promtForTemplate(noOfTemplates){
+async function promtForTemplate(noOfTemplates) {
   const response = await prompts({
     type: 'number',
     name: 'value',
@@ -567,18 +570,17 @@ async function promtForTemplate(noOfTemplates){
   return response.value;
 }
 
-async function promtForInput(message){
+async function promtForInput(message) {
   const response = await prompts({
     type: 'text',
     name: 'value',
     message: message,
-    validate: value => value.length < 10 ? "Input too small" : true
   });
 
   return response.value;
 }
 
-async function promtForStringInput(match){
+async function promtForStringInput(match) {
   const response = await prompts({
     type: 'text',
     name: 'value',
@@ -589,7 +591,7 @@ async function promtForStringInput(match){
   return response.value;
 }
 
-async function promtForIntInput(match){
+async function promtForIntInput(match) {
   const response = await prompts({
     type: 'number',
     name: 'value',
@@ -608,14 +610,23 @@ function openDir(dir){
     if(err) {
       console.log(err);
     }
-  })
+  });
 }
 
-async function handleDashboardJson(json){
+function tryWriteFileSync(path, file){
+  try {
+    fs.writeFileSync(path, file);
+  }
+  catch(err) {
+    console.log(err);
+  }
+}
+
+async function handleDashboardJson(json) {
   // Save the json as a file
   let jsonString = JSON.stringify(json);
   const dirPath = path.join(TEMP_DIR, 'temp.json');
-  fs.writeFileSync(dirPath, jsonString);
+  tryWriteFileSync(dirPath, jsonString);
 
   // Load the dashboard json file to edit
   let jsonFile = editJsonFile(dirPath);
@@ -623,14 +634,14 @@ async function handleDashboardJson(json){
   // Pull out dashboard panel object and get the last grid coordinates
   var jsonPanels = jsonFile.get('dashboard.panels');
   let length = jsonPanels.length;
-  let gridPos = jsonPanels[length - 1].gridPos
+  let gridPos = jsonPanels[length - 1].gridPos;
 
   // Load the template and parse as object
   let noOfTemplates = displayTemplates();
   let templateChoice = await promtForTemplate(noOfTemplates);
   let templateName = getTemplateName(templateChoice);
   const templatePath = path.join(TEMPLATES_DIR, `${templateName}.json`);
-  let rawTemplate = fs.readFileSync(templatePath) //TODO: Check the template and warn if it doesnt look like grafana json
+  let rawTemplate = fs.readFileSync(templatePath); //TODO: Check the template and warn if it doesnt look like grafana json
   var template = JSON.parse(rawTemplate);
 
   //Give random ID and itterate on the position
@@ -644,7 +655,7 @@ async function handleDashboardJson(json){
   templateString = await replaceIntVariables(templateString);
 
   // Parse and add the template to the json panels object
-  template = JSON.parse(templateString)
+  template = JSON.parse(templateString);
   jsonPanels.push(template);
 
   // Set the updated template into the json file
@@ -655,7 +666,7 @@ async function handleDashboardJson(json){
   setDashboardJsonByUid(jsonFile.get("dashboard"));
 }
 
-function displayTemplates(){
+function displayTemplates() {
   var i = 0;
   NEWLINE();
 
@@ -673,7 +684,7 @@ function displayTemplates(){
   return i;
 }
 
-async function manageEnvVar(envVar, message, name, envName){
+async function manageEnvVar(envVar, message, name, envName) {
   if (envVar === undefined || envVar === ''){
     console.log("[-] Error: Not set");
     setEnvVar(message, name, envName);
@@ -691,7 +702,7 @@ async function manageEnvVar(envVar, message, name, envName){
   }
 }
 
-async function replaceStringVariables(jsonString){
+async function replaceStringVariables(jsonString) {
   const regex = /{{\w+}}/g;
   let replace = jsonString;
   let m;
@@ -706,9 +717,9 @@ async function replaceStringVariables(jsonString){
    return jsonString;
 }
 
-async function replaceIntVariables(jsonString){
+async function replaceIntVariables(jsonString) {
   const regex = /"{i{\w+}}"/g;
-  let replace = jsonString
+  let replace = jsonString;
   let m;
 
   while ((m = regex.exec(replace)) !== null) {
@@ -720,13 +731,3 @@ async function replaceIntVariables(jsonString){
   }
   return jsonString;
 }
-
- // uid: pmr8WlZRk 
-
- // init:
- // http://tatooine.local:3000
- // eyJrIjoiTTJWd2dwZkpqYkxhbncyeTU1cmxEU1hOc2tONnBYSTkiLCJuIjoiR3JhZlBBRCIsImlkIjoxfQ==
- // http://tatooine.local:1880
- // somerandomapikeybecausewedonthaveoneyetasnoderedisntsettoneedone
- // http://tatooine.local:9090
- // /etc/prometheus/prometheus.yml
