@@ -1,6 +1,6 @@
 # GrafPAD
 
-![GrafPAD Title](GrafpadTitle.png)
+![GrafPAD Title](/GrafpadTitle.PNG)
 
 ![Maintenance](https://img.shields.io/maintenance/yes/2019)
 ![GitHub last commit](https://img.shields.io/github/last-commit/mikecbone/GrafPAD)
@@ -45,6 +45,189 @@ GrafPAD can be used by simply entering into terminal
 grafpad
 ```
 
+### Usage 
+
+Grafana dashboard UIDs can be found via the URL `http://localhost:3000/d/d12SE5iRt/` or at the end of a dashboards JSON
+
+Node-RED flow IDs can be be found via the URL `http://localhost:1880/#flow/21ad0b6d.28f214` or in the flow information tab.
+
+## Templates
+
+### Grafana Panal Template
+
+Use `{{VAR_NAME_HERE}}` as string variables in the template.
+
+Use `{i{VAR_NAME_HERE}}` as int variables in the template.
+
+Panel grid positions will be automatically calculated and updated.
+
+Panal ID will be automatically generated.
+
+Example:
+
+```JSON
+{
+  "aliasColors": {},
+  "bars": false,
+  "dashLength": 10,
+  "dashes": false,
+  "datasource": "{{DATASOURCE}}",
+  "fill": 1,
+  "fillGradient": "{i{FILL_AMOUNT}}",
+  "gridPos": {
+    "h": 9,
+    "w": 12,
+    "x": 0,
+    "y": 0
+  },
+  "id": 5,
+  "legend": {
+    "avg": false,
+    "current": false,
+    "max": false,
+    "min": false,
+    "show": true,
+    "total": false,
+    "values": false
+  },
+  "lines": true,
+  "linewidth": 1,
+  "nullPointMode": "null",
+  "options": {
+    "dataLinks": []
+  },
+  "percentage": false,
+  "pointradius": 2,
+  "points": false,
+  "renderer": "flot",
+  "seriesOverrides": [],
+  "spaceLength": 10,
+  "stack": false,
+  "steppedLine": false,
+  "targets": [
+    {
+      "groupBy": [],
+      "measurement": "{{MEASUREMENT}}",
+      "orderByTime": "ASC",
+      "policy": "default",
+      "refId": "A",
+      "resultFormat": "time_series",
+      "select": [
+        [
+          {
+            "params": [
+              "isOnline"
+            ],
+            "type": "field"
+          }
+        ]
+      ],
+      "tags": []
+    }
+  ],
+  "thresholds": [],
+  "timeFrom": null,
+  "timeRegions": [],
+  "timeShift": null,
+  "title": "{{TITLE}}",
+  "tooltip": {
+    "shared": true,
+    "sort": 0,
+    "value_type": "individual"
+  },
+  "type": "graph",
+  "xaxis": {
+    "buckets": null,
+    "mode": "time",
+    "name": null,
+    "show": true,
+    "values": []
+  },
+  "yaxes": [
+    {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+    },
+    {
+      "format": "short",
+      "label": null,
+      "logBase": 1,
+      "max": null,
+      "min": null,
+      "show": true
+    }
+  ],
+  "yaxis": {
+    "align": false,
+    "alignLevel": null
+  }
+}
+```
+
+### Node-RED Flow Template
+
+Use `{{VAR_NAME_HERE}}` as string variables in the template.
+
+Use `{i{VAR_NAME_HERE}}` as int variables in the template.
+
+Node IDs will be automatically generated and wire link IDs will be automatically updated.
+
+Example:
+
+```JSON
+[
+  {
+      "id": "d419c2a0.6647f",
+      "type": "ping",
+      "z": "4ccf9c67.de5d94",
+      "name": "",
+      "host": "{{HOST}}",
+      "timer": "60",
+      "x": 150,
+      "y": 80,
+      "wires": [
+          [
+              "ff11aacf.905ef8"
+          ]
+      ]
+  },
+  {
+      "id": "ff11aacf.905ef8",
+      "type": "function",
+      "z": "4ccf9c67.de5d94",
+      "name": "Set Device Params",
+      "func": "msg.ping = msg.payload\nmsg.devId = \"{{DEVICE_NAME}}\"\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "x": 350,
+      "y": 80,
+      "wires": [
+          [
+              "a1b53515.d8dc48"
+          ]
+      ]
+  },
+  {
+      "id": "a1b53515.d8dc48",
+      "type": "link out",
+      "z": "4ccf9c67.de5d94",
+      "name": "TTN_LIV_PING",
+      "links": [
+          "4422fa4a.5e2044"
+      ],
+      "x": 515,
+      "y": 80,
+      "wires": []
+  }
+]
+```
+
+
+
 ## Dependencies
 
 - `yargs` for command line arguments
@@ -64,4 +247,4 @@ TODO
 
 ## License
 
-This project is licensed under the MIT License
+This project is licensed under the ISC License

@@ -106,11 +106,11 @@ async function menu() {
       name: 'value',
       message: 'Menu',
       choices: [
-        { title: 'Manage templates', description: 'Manage Grafana JSON templates', value: 1 },
-        { title: 'Add panel by UID', description: 'Add a panel from templates to a dashboard by UID', value: 2},
-        { title: 'Get dashboard JSON by UID', description: 'Retrieve the JSON of a dashboard by UID', value: 3},
-        { title: 'Add target to Node-RED', description: 'Add a target to Node-RED monitoring', value: 4},
-        { title: 'Add target to Prometheus', description: 'Add a scraping target to prometheus', value: 5},
+        { title: 'Add panel by UID', description: 'Add a panel from templates to a dashboard by UID', value: 1},
+        { title: 'Add target to Node-RED', description: 'Add a target to Node-RED monitoring', value: 2},
+        { title: 'Add target to Prometheus', description: 'Add a scraping target to prometheus', value: 3},
+        { title: 'Get dashboard JSON by UID', description: 'Retrieve the JSON of a dashboard by UID', value: 4},
+        { title: 'Manage templates', description: 'Manage Grafana JSON templates', value: 5},
         { title: 'Manage Initialised Variables', description: 'Manage environment variables setup at initialisation', value: 6},
         { title: 'Exit', description: 'Exit GrafPAD', value: 99},
       ],
@@ -124,19 +124,19 @@ async function menu() {
         exitApp();
         break;
       case 1:
-        menuTemplates();
-        break;
-      case 2:
         menuPanelByUid();
         break;
-      case 3:
-        menuDashboardJsonByUid();
-        break;
-      case 4:
+      case 2:
         menuAddTargetToNodeRed();
         break;
-      case 5:
+      case 3:
         menuAddTargetToPrometheus();
+        break;
+      case 4:
+        menuDashboardJsonByUid();
+        break;
+      case 5:
+        menuTemplates();
         break;
       case 6:
         menuManageVariables();
