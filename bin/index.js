@@ -51,7 +51,6 @@ const PROMETHEUS_CONFIG_ENVNAME = 'PROMETHEUS_CONFIG';
 const PROMETHEUS_CONFIG_NAME = 'Prometheus Config Location';
 
 require('dotenv').config({path: ENV_FILE});
-console.log(TEMP_DIR);
 
 // ----- OPENING CODE -----
 if (options.init){
