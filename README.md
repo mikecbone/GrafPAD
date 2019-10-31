@@ -11,7 +11,7 @@ GrafPAD is a Grafana panel and dashboard editing terminal tool with additional s
 
 Its aim is to easily add new panels to Grafana and new targets for Prometheus/Node-RED scraping, based off pre-made templates. 
 
-### Example
+### Example:
 
 You have a Grafana dashboard with a panal showing the temperature for each sensor you have. Creating a template of the panal would allow GrafPAD to add a new sensor panal to the dashboard with the user only needing to input required information such as the panal title and data source. 
 
@@ -19,11 +19,11 @@ Additionally, GrafPAD can then be used to automate the whole process if required
 
 ## Getting Started
 
-### Prerequisites
+### Prerequisites:
 
 A minimum setup will require an existing [Grafana](https://grafana.com/) installation. For additional functionality [Prometheus](https://prometheus.io/) xor [Node-RED](https://nodered.org/) are required.
 
-### Installing
+### Installing:
 
 GrafPAD can be installed via npm
 
@@ -37,7 +37,7 @@ Then initialise the application with
 grafpad --init
 ```
 
-### Running
+### Running:
 
 GrafPAD can be used by simply entering into terminal
 
@@ -45,7 +45,7 @@ GrafPAD can be used by simply entering into terminal
 grafpad
 ```
 
-### Usage 
+### Usage:
 
 Grafana dashboard UIDs can be found via the URL `http://localhost:3000/d/d12SE5iRt/` or at the end of a dashboards JSON
 
@@ -53,7 +53,7 @@ Node-RED flow IDs can be be found via the URL `http://localhost:1880/#flow/21ad0
 
 ## Templates
 
-### Grafana Panal Template
+### Grafana Panal Template:
 
 Use `{{VAR_NAME_HERE}}` as string variables in the template.
 
@@ -168,7 +168,7 @@ Example:
 }
 ```
 
-### Node-RED Flow Template
+### Node-RED Flow Template:
 
 Use `{{VAR_NAME_HERE}}` as string variables in the template.
 
