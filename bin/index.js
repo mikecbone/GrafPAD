@@ -394,7 +394,7 @@ function setFolderStructure() {
 async function setEnvVar(message, name, envName) {
   let env = await promtForInput(message);
 
-  if (env != undefined && env != ''){
+  if (env != undefined){
     fs.appendFileSync(ENV_FILE, '\n'+envName+'='+env);
     console.log(chalk.green(name + 'Set\n'));
   }
@@ -405,6 +405,11 @@ async function setEnvVar(message, name, envName) {
 }
 
 async function getDashboardJsonByUid(uid, callback) {
+  if(process.env.GRAFANA_API_KEY === undefined || process.env.GRAFANA_API_KEY == ''){
+    console.log(chalk.red(GRAFANA_API_NAME + ' Not Set\n'));
+    return;
+  }
+
   const baseUrl = process.env.GRAFANA_URL + "/api/dashboards/uid/";
   const url = baseUrl + String(uid);
 
@@ -422,6 +427,11 @@ async function getDashboardJsonByUid(uid, callback) {
 }
 
 async function setDashboardJsonByUid(json) {
+  if(process.env.GRAFANA_API_KEY === undefined || process.env.GRAFANA_API_KEY == ''){
+    console.log(chalk.red(GRAFANA_API_NAME + ' Not Set\n'));
+    return;
+  }
+
   const baseUrl = process.env.GRAFANA_URL + "/api/dashboards/db";
 
   axios.post(
