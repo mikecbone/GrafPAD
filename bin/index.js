@@ -349,6 +349,7 @@ function menuAddTargetToPrometheus() { //TODO: Refactor this method
 
         console.log(stdout);
         console.log(stderr);
+        console.log(chalk.green('Successfully updated the Prometheus config file'));
       });
 
       setTimeout(menu, MENU_SLEEP_TIME);
@@ -457,7 +458,7 @@ async function getDashboardJsonByUid(uid, callback) {
   if(process.env.GRAFANA_URL == undefined || process.env.GRAFANA_URL == ''){
     console.log(chalk.red(GRAFANA_URL_NAME + ' Not Set\n'));
     return;
-  }
+  } //TODO: Add these checks for other services. 
 
   const baseUrl = process.env.GRAFANA_URL + "/api/dashboards/uid/";
   const url = baseUrl + String(uid);

@@ -57,13 +57,21 @@ Grafana dashboard UIDs can be found via the URL /d/`d12SE5iRt`/ or at the end of
 
 Selecting `Add Grafana panel by UID` from the main menu and following the promts will allow you to enter custom variables into the seleted template. 
 
-On success it will display `Successfully updated dashboard`. 
+On success it will display `Successfully updated dashboard` and the template panel will be added to the end of the dashboard chosen.
 
 ### Add target to Node-RED:
 
 Node-RED flow IDs can be be found via the URL /#flow/`21ad0b6d.28f214` or in the flow information tab.
 
-### Add target to Prometheus
+Selecting `Add target to Node-RED` from the main menu and following the promts will allow you to enter custom variables into the seleted template. 
+
+On success it will display `Successfully updated Node-RED` and the template nodes will be added to the chosen flow.
+
+### Add target to Prometheus:
+
+Selecting `Add target to Prometheus` from the main menu and following the promts will allow you to enter a new target into the Prometheus config file. 
+
+On success it will display `Successfully updated the Prometheus config file` and the entered target will be added to any chosen Prometheus scrape locations.
 
 ## Templates
 
