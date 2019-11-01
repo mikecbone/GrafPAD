@@ -20,15 +20,14 @@ const uuidv4 = require('uuid/v4'); // Random IDs
 
 // ----- CONSTANTS -----
 const options = yargs.argv; // Get command line options eg: debug
-const dirPath = __dirname.split('bin')[0];
+const appDirPath = path.join(os.homedir(), '.grafpad');
 const MENU_SLEEP_TIME = 1500;
 const NEWLINE = () => console.log(os.EOL);
 
-const STORE_DIR = path.join(dirPath, 'store');
-const ENV_FILE = path.join(dirPath, '.env');
-const GIT_FILE = path.join(dirPath, '.gitignore');
-const TEMPLATES_DIR = path.join(STORE_DIR, 'templates');
-const SAVED_DIR = path.join(STORE_DIR, 'saved');
+const ENV_FILE = path.join(appDirPath, '.env');
+const GIT_FILE = path.join(appDirPath, '.gitignore');
+const TEMPLATES_DIR = path.join(appDirPath, 'templates');
+const FILES_DIR = path.join(appDirPath, 'files');
 const TEMP_DIR = os.tmpdir();
 
 const GRAFANA_URL_MESSAGE = 'Enter Grafana URL (eg: http://localhost:3000)';
@@ -51,6 +50,7 @@ const PROMETHEUS_CONFIG_ENVNAME = 'PROMETHEUS_CONFIG';
 const PROMETHEUS_CONFIG_NAME = 'Prometheus Config Location';
 
 require('dotenv').config({path: ENV_FILE});
+console.log(os.homedir());
 
 // ----- OPENING CODE -----
 if (options.init){
@@ -67,7 +67,7 @@ else {
 /**
  * Initialise GrafPAD with required folder structure and files
  */
-async function initialise() {
+async function initialise() { //TODO: THIS RESETS ON EACH UPDATE
   setFolderStructure();
   await setEnvVar(GRAFANA_URL_MESSAGE, GRAFANA_URL_NAME, GRAFANA_URL_ENVNAME);
   await setEnvVar(GRAFANA_API_MESSAGE, GRAFANA_API_NAME, GRAFANA_API_ENVNAME);
@@ -87,7 +87,7 @@ function title() {
     boxen(
       chalk.hex('FF7700')(figlet.textSync("GrafPAD")+"\nGrafana Panel and Dashboard Editing Tool")
       + chalk.yellow('\n- Support for Prometheus and Node-RED -\n')
-      + chalk.magenta(os.platform() + os.arch() + ' - v0.1.0 - the Red Dev Team'),
+      + chalk.magenta(os.platform() + os.arch() + ' - v0.1.2 - TRDT'),
       {
         padding: 1, float: 'center', align: 'center', border: 'bold'
       }
@@ -106,12 +106,12 @@ async function menu() {
       name: 'value',
       message: 'Menu',
       choices: [
-        { title: 'Add panel by UID', description: 'Add a panel from templates to a dashboard by UID', value: 1},
+        { title: 'Add Grafana panel by UID', description: 'Add a panel from templates to a dashboard by UID', value: 1},
         { title: 'Add target to Node-RED', description: 'Add a target to Node-RED monitoring', value: 2},
-        { title: 'Add target to Prometheus', description: 'Add a scraping target to prometheus', value: 3},
+        { title: 'Add target to Prometheus', description: 'Add a scraping target to Prometheus', value: 3},
         { title: 'Get dashboard JSON by UID', description: 'Retrieve the JSON of a dashboard by UID', value: 4},
         { title: 'Manage templates', description: 'Manage Grafana JSON templates', value: 5},
-        { title: 'Manage Initialised Variables', description: 'Manage environment variables setup at initialisation', value: 6},
+        { title: 'Manage initialised variables', description: 'Manage environment variables setup at initialisation', value: 6},
         { title: 'Exit', description: 'Exit GrafPAD', value: 99},
       ],
       initial: 0,
@@ -398,14 +398,14 @@ function exitApp() {
 
 // ----- SET AND GETS -----
 function setFolderStructure() {
-  if (!fs.existsSync(STORE_DIR)){
-    fs.mkdirSync(STORE_DIR);
+  if (!fs.existsSync(appDirPath)){
+    fs.mkdirSync(path.join(os.homedir(), '.grafpad'));
   }
   if (!fs.existsSync(TEMPLATES_DIR)){
     fs.mkdirSync(TEMPLATES_DIR);
   }
-  if (!fs.existsSync(SAVED_DIR)){
-    fs.mkdirSync(SAVED_DIR);
+  if (!fs.existsSync(FILES_DIR)){
+    fs.mkdirSync(FILES_DIR);
   }
   if (!fs.existsSync(GIT_FILE)){
     tryWriteFileSync(GIT_FILE, '.env\nnode_modules\nstore/temp\n.DS_Store\n');
@@ -541,10 +541,10 @@ function getTemplateName(templateChoice) {
 }
 
 function setDashboardJsonToDisk(json) {
-  const dirPath = path.join(SAVED_DIR, 'json.json');
+  const dirPath = path.join(FILES_DIR, 'json.json');
   tryWriteFileSync(dirPath, JSON.stringify(json));
 
-  openDir(SAVED_DIR);
+  openDir(FILES_DIR);
 }
 
 // ----- PROMPTS -----
@@ -798,3 +798,6 @@ async function replaceIntVariables(jsonString) {
   }
   return jsonString;
 }
+
+//TODO: Add a function to check for update on start
+//TODO: Change where data is saved to persist updates
