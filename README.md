@@ -47,11 +47,23 @@ grafpad
 
 For verbose output, run with `-v` command.
 
-### Usage:
+## Usage:
 
-Grafana dashboard UIDs can be found via the URL `http://localhost:3000/d/d12SE5iRt/` or at the end of a dashboards JSON
+### Add Grafana panel by UID:
 
-Node-RED flow IDs can be be found via the URL `http://localhost:1880/#flow/21ad0b6d.28f214` or in the flow information tab.
+To add a panel to a grafana dashboard you need to find the UID of the dashboard.
+
+Grafana dashboard UIDs can be found via the URL /d/`d12SE5iRt`/ or at the end of a dashboards JSON model. 
+
+Selecting `Add Grafana panel by UID` from the main menu and following the promts will allow you to enter custom variables into the seleted template. 
+
+On success it will display `Successfully updated dashboard`. 
+
+### Add target to Node-RED:
+
+Node-RED flow IDs can be be found via the URL /#flow/`21ad0b6d.28f214` or in the flow information tab.
+
+### Add target to Prometheus
 
 ## Templates
 
@@ -242,6 +254,7 @@ Example:
 - `editJsonFile` for JSON editing
 - `yaml` for YAML editing
 - `uuidv4` for ID generation
+- `updateNotifier` for update notifications
 
 ## Roadmap
 

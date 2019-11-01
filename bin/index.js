@@ -17,6 +17,8 @@ const openExplorer = require('open-file-explorer'); // File explorer
 const editJsonFile = require('edit-json-file'); // JSON editor
 const yaml = require('js-yaml'); // YAML editor
 const uuidv4 = require('uuid/v4'); // Random IDs
+const updateNotifier = require('update-notifier'); // Update notifier
+const pkg = require('../package.json'); // Required for update notifier
 
 // ----- CONSTANTS -----
 const options = yargs.argv; // Get command line options eg: debug
@@ -50,9 +52,13 @@ const PROMETHEUS_CONFIG_ENVNAME = 'PROMETHEUS_CONFIG';
 const PROMETHEUS_CONFIG_NAME = 'Prometheus Config Location';
 
 require('dotenv').config({path: ENV_FILE});
-console.log(os.homedir());
 
 // ----- OPENING CODE -----
+// Checks for available update and returns an instance
+const notifier = updateNotifier({pkg, updateCheckInterval: 60});
+// Notify using the built-in convenience method
+notifier.notify();
+
 if (options.init){
   initialise();
 } 
@@ -76,6 +82,7 @@ async function initialise() { //TODO: THIS RESETS ON EACH UPDATE
   await setEnvVar(PROMETHEUS_URL_MESSAGE, PROMETHEUS_URL_NAME, PROMETHEUS_URL_ENVNAME);
   await setEnvVar(PROMETHEUS_CONFIG_MESSAGE, PROMETHEUS_CONFIG_NAME, PROMETHEUS_CONFIG_ENVNAME);
   fs.appendFileSync(ENV_FILE, '\nINIT=true');
+  console.log(chalk.green('[+] GrafPAD initialised. Start with ' + chalk.yellow('grafpad')));
 }
 
 /**
@@ -87,7 +94,7 @@ function title() {
     boxen(
       chalk.hex('FF7700')(figlet.textSync("GrafPAD")+"\nGrafana Panel and Dashboard Editing Tool")
       + chalk.yellow('\n- Support for Prometheus and Node-RED -\n')
-      + chalk.magenta(os.platform() + os.arch() + ' - v0.1.2 - TRDT'),
+      + chalk.magenta(os.platform() + os.arch() + ' - v0.1.4 - TRDT'),
       {
         padding: 1, float: 'center', align: 'center', border: 'bold'
       }
@@ -233,6 +240,7 @@ async function menuAddTargetToNodeRed() { //TODO: Refactor this method
 
       // Load the template and parse as object TODO: This code is repeated
       let noOfTemplates = displayTemplates();
+      if(noOfTemplates === -1) {return};
       let templateChoice = await promtForTemplate(noOfTemplates);
       let templateName = getTemplateName(templateChoice);
       const templatePath = path.join(TEMPLATES_DIR, `${templateName}.json`);
@@ -418,18 +426,36 @@ async function setEnvVar(message, name, envName) {
   let env = await promtForInput(message);
 
   if (env != undefined){
-    fs.appendFileSync(ENV_FILE, '\n'+envName+'='+env);
-    console.log(chalk.green(name + 'Set\n'));
+    let regexp = new RegExp(envName + '=.+', 'g');
+    let envFile = fs.readFileSync(ENV_FILE);
+    let envFileString = envFile.toString();
+
+    // Update current env var if it exists
+    if (envFileString.search(regexp) >= 0) {
+      let result = envFileString.replace(regexp, envName+'='+env);
+      fs.writeFileSync(ENV_FILE, result);
+    }
+    //Else append it
+    else {
+      fs.appendFileSync(ENV_FILE, '\n'+envName+'='+env);
+      console.log(chalk.green(name + ' Set\n'));
+    }
   }
   else {
     console.log(chalk.red(name + ' Undefined'));
     process.exit();
   }
+
+  process.env.GRAFANA_API_KEY = 'ichangedit';
 }
 
 async function getDashboardJsonByUid(uid, callback) {
   if(process.env.GRAFANA_API_KEY === undefined || process.env.GRAFANA_API_KEY == ''){
     console.log(chalk.red(GRAFANA_API_NAME + ' Not Set\n'));
+    return;
+  }
+  if(process.env.GRAFANA_URL == undefined || process.env.GRAFANA_URL == ''){
+    console.log(chalk.red(GRAFANA_URL_NAME + ' Not Set\n'));
     return;
   }
 
@@ -458,6 +484,10 @@ async function getDashboardJsonByUid(uid, callback) {
 async function setDashboardJsonByUid(json) {
   if(process.env.GRAFANA_API_KEY === undefined || process.env.GRAFANA_API_KEY == ''){
     console.log(chalk.red(GRAFANA_API_NAME + ' Not Set\n'));
+    return;
+  }
+  if(process.env.GRAFANA_URL == undefined || process.env.GRAFANA_URL == ''){
+    console.log(chalk.red(GRAFANA_URL_NAME + ' Not Set\n'));
     return;
   }
 
@@ -706,6 +736,7 @@ async function handleDashboardJson(json) {
 
   // Load the template and parse as object
   let noOfTemplates = displayTemplates();
+  if(noOfTemplates === -1) {return};
   let templateChoice = await promtForTemplate(noOfTemplates);
   let templateName = getTemplateName(templateChoice);
   const templatePath = path.join(TEMPLATES_DIR, `${templateName}.json`);
@@ -734,18 +765,26 @@ async function handleDashboardJson(json) {
   setDashboardJsonByUid(jsonFile.get("dashboard"));
 }
 
-function displayTemplates() {
+function displayTemplates() { //TODO: This check will fail if theres a non json file in the templates folder
   var i = 0;
   NEWLINE();
 
-  fs.readdirSync(TEMPLATES_DIR).forEach(file => {
-    let split = file.split('.');
-
-    if(split[1] == 'json'){
-      console.log(' ' + i + ': ' + split[0]);
-      i++;
-    }
-  })
+  let templateDir = fs.readdirSync(TEMPLATES_DIR);
+  if (templateDir.length > 0){
+    templateDir.forEach(file => {
+      let split = file.split('.');
+  
+      if(split[1] == 'json'){
+        console.log(' ' + i + ': ' + split[0]);
+        i++;
+      }
+    })
+  }
+  else {
+    openDir(TEMPLATES_DIR);
+    console.log(chalk.red('[-] Error: No templates detected'));
+    return -1;
+  }
 
   NEWLINE();
   return i;
@@ -798,6 +837,3 @@ async function replaceIntVariables(jsonString) {
   }
   return jsonString;
 }
-
-//TODO: Add a function to check for update on start
-//TODO: Change where data is saved to persist updates
